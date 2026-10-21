@@ -99,6 +99,11 @@ export function tapeStop(seconds = 2) {
 // Filtro de cada tipo de grito: detrás de la puerta, a medio camino, o encima de ti.
 const FILTROS = { puerta: 650, medio: 2200, abierto: 6000 };
 
+// El grito en bruto, para que el juego lo use en el coro del ente.
+export function bufferGrito() {
+  return ctx ? screamBuf() : null;
+}
+
 function screamBuf() {
   if (!screamBuffer) {
     const data = screamSamples(ctx.sampleRate, 1.6, createRng(1031));

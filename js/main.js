@@ -24,6 +24,10 @@ const GRITO_FUERTE_MS = 3500;
 const PIXEL = [0, 0, 0, 2, 3, 4];
 
 const app = document.getElementById('app');
+
+// El juego (Three.js, ~700 KB) se carga en segundo plano mientras se responde la encuesta.
+// Si no llega a cargar, la encuesta termina en «HAS MUERTO» como siempre.
+const juegoListo = import('./juego/index.js').catch(() => null);
 const apagon = document.getElementById('apagon');
 const rng = createRng(Date.now() >>> 0);
 const guard = createFlashGuard(3);
@@ -233,9 +237,10 @@ function finish(camino) {
     renderBlack(app);
     later(() => {
       // El juego escucha este evento y llama a preventDefault() si se encarga del camino.
-      const ev = new CustomEvent('encuesta:fin', { detail: { camino }, cancelable: true });
+      const alFallar = () => renderMuerte(app, start);
+      const ev = new CustomEvent('encuesta:fin', { detail: { camino, reiniciar: start, alFallar }, cancelable: true });
       const handled = !window.dispatchEvent(ev);
-      if (!handled) renderMuerte(app, start);
+      if (!handled) alFallar();
     }, BLACK_MS);
   }, QTV_MS);
 }
@@ -251,3 +256,12 @@ function start() {
 
 makeDither();
 start();
+
+// Atajo de prueba: #juego-final2 o #juego-pasillo salta la encuesta y abre el juego directamente.
+const atajo = /^#juego-(final2|pasillo)$/.exec(window.location.hash);
+if (atajo) {
+  juegoListo.then(() => {
+    const alFallar = () => renderMuerte(app, start);
+    window.dispatchEvent(new CustomEvent('encuesta:fin', { detail: { camino: atajo[1], reiniciar: start, alFallar }, cancelable: true }));
+  });
+}

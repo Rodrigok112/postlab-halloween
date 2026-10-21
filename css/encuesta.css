@@ -317,3 +317,63 @@ body.nivel-5 .si-media { border-radius: 0; }
   .avatar.saluda, .mano-saludo, .btn-no.salto { animation: none; }
   .pensando::after { animation: none; width: auto; }
 }
+
+/* ---------- Juego ---------- */
+
+.juego {
+  position: fixed; inset: 0; z-index: 60;
+  background: #000;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.juego-lienzo { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.juego-capa {
+  position: absolute; inset: 0; pointer-events: none;
+  font-family: "VT323", ui-monospace, monospace;
+  color: #e9e2c8;
+}
+.juego-capa button { pointer-events: auto; }
+.juego-aviso {
+  position: absolute; left: 0; right: 0; bottom: 18%;
+  margin: 0; text-align: center;
+  font-size: clamp(30px, 10vw, 60px);
+  color: #fff6d8;
+  text-shadow: 3px 3px 0 #000;
+  animation: aviso 1s steps(1) infinite;
+}
+@keyframes aviso { 50% { opacity: .35; } }
+/* Ojos rojos que asoman por un borde (--lado: 0 izquierda, 1 derecha). */
+.juego-ojos {
+  position: absolute; top: 42%; left: calc(var(--lado, 0) * (100% - 64px));
+  display: flex; gap: 14px; padding: 0 8px; opacity: 0;
+}
+.juego-ojos.on { opacity: 1; }
+.ojo-rojo { width: 12px; height: 7px; border-radius: 50%; background: #ff1a1a; box-shadow: 0 0 10px 3px rgba(255, 26, 26, .8); }
+.juego-final {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: #000;
+}
+.juego-titulo { margin: 0; padding: 0 16px; text-align: center; line-height: 1; }
+.muerte-juego .juego-titulo {
+  font-family: "Rubik Wet Paint", ui-monospace, monospace; font-weight: 400;
+  font-size: clamp(56px, 17vw, 150px); color: #9e0b12; text-shadow: 0 0 24px rgba(158, 11, 18, .35);
+}
+.juego-toques { margin: 0; font-size: 26px; color: #8a8270; }
+.escapado { background: transparent; }
+.escapado .juego-titulo { font-size: clamp(56px, 18vw, 150px); color: #1d2a12; font-weight: 400; }
+.escapado .juego-toques { color: #2e3d1f; }
+.escapado .otra-vez { color: #2e3d1f; }
+/* Flash blanco al cruzar la puerta: un solo destello que se queda en blanco. */
+.juego-flash { position: absolute; inset: 0; background: #fff; animation: flash .6s ease-out both; }
+@keyframes flash { from { opacity: 0; } to { opacity: 1; } }
+/* Jardín provisional (hasta elegir la foto): cielo, sol, césped. */
+.jardin {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 75% 22%, #fffbe0 0 6%, rgba(255, 251, 224, .0) 14%),
+    linear-gradient(#cfe8f2 0 58%, #7fae4f 58% 70%, #5d8f37 70%);
+  image-rendering: pixelated;
+}
