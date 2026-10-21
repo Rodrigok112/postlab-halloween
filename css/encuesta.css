@@ -1,0 +1,230 @@
+/* Encuesta: empieza como una IA amable y se va corrompiendo por niveles (body.nivel-0 a nivel-5). */
+
+:root {
+  --fondo: #f6efe4;
+  --tarjeta: #ffffff;
+  --tinta: #4a3f52;
+  --tinta-suave: #8c8096;
+  --acento: #f4a6c8;
+  --acento-fuerte: #e77fae;
+  --tramado-opacidad: 0;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body {
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: ui-rounded, "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  transition: background-color 1.2s;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px 16px;
+}
+
+/* ---------- Tarjeta de la IA ---------- */
+
+.tarjeta {
+  position: relative;
+  z-index: 12;
+  width: 100%;
+  max-width: 420px;
+  background: var(--tarjeta);
+  border-radius: 28px;
+  padding: 24px 22px 28px;
+  box-shadow: 0 10px 30px rgba(74, 63, 82, .12);
+  transition: background-color 1.2s;
+}
+
+.ia { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+
+.avatar {
+  flex: none;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--acento);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.ia-titulo { margin: 0; font-weight: 700; font-size: 16px; }
+.ia-sub { margin: 2px 0 0; font-size: 13px; color: var(--tinta-suave); }
+
+.contador {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--acento-fuerte);
+}
+
+.pregunta {
+  margin: 0;
+  font-size: clamp(24px, 7vw, 32px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.sub { margin: 10px 0 0; min-height: 1.4em; color: var(--tinta-suave); font-size: 15px; }
+
+.pensando { margin: 14px 0 0; height: 1.2em; color: var(--tinta-suave); visibility: hidden; }
+.pensando::after { content: "…"; display: inline-block; animation: puntos 1.2s steps(3) infinite; width: 0; overflow: hidden; vertical-align: bottom; }
+body.bloqueado .pensando { visibility: visible; }
+@keyframes puntos { to { width: 1.2em; } }
+
+/* ---------- Botones ---------- */
+
+.botones {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 18px;
+  min-width: 112px;
+  min-height: 52px;
+  padding: 12px 24px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform .25s, font-size .25s;
+}
+.btn:focus-visible { outline: 3px solid var(--acento-fuerte); outline-offset: 3px; }
+body.bloqueado .btn { cursor: progress; opacity: .6; }
+
+.btn-si { background: var(--acento); color: #fff; }
+.btn-no { background: #ece6f0; color: var(--tinta); }
+
+.si-grande { font-size: 24px; min-width: 150px; min-height: 66px; }
+.si-mayor { font-size: 32px; min-width: 210px; min-height: 90px; }
+.si-media {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 50vh; height: 50dvh;
+  border-radius: 40px 40px 0 0; font-size: 56px; z-index: 10;
+}
+.si-completa {
+  position: fixed; inset: 0; border-radius: 0; font-size: clamp(72px, 30vw, 180px); z-index: 10;
+  /* Etiqueta abajo para no pisar la pregunta, que queda centrada encima. */
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 12vh;
+}
+
+.btn-no { transform: scale(var(--escala, 1)); }
+.no-movido { order: -1; margin-top: 64px; }
+/* Por encima de la tarjeta (z-index 12): el No que se mueve no puede quedar tapado. */
+.no-huye { position: fixed; z-index: 13; transition: left .12s, top .12s; }
+.no-esquina { position: fixed; right: 10px; bottom: 10px; z-index: 13; transform-origin: bottom right; }
+.no-oculto { display: none; }
+
+/* Con el Sí grande, la tarjeta deja pasar los toques al Sí. */
+body.si-tapa .tarjeta { pointer-events: none; }
+body.si-completa-activo .tarjeta { background: transparent; box-shadow: none; color: #fff; }
+body.si-completa-activo .ia-sub,
+body.si-completa-activo .sub,
+body.si-completa-activo .contador { color: #fff; }
+
+/* ---------- Niveles de corrupción ---------- */
+
+#tramado {
+  position: fixed; inset: 0; z-index: 30; pointer-events: none;
+  background-image: var(--tramado-img, none);
+  background-size: 8px 8px;
+  image-rendering: pixelated;
+  mix-blend-mode: multiply;
+  opacity: var(--tramado-opacidad);
+}
+
+body.nivel-1 { --tramado-opacidad: .05; }
+body.nivel-2 { --tramado-opacidad: .09; --fondo: #efe5d4; }
+body.nivel-3 { --tramado-opacidad: .14; --fondo: #e3d6bd; --tarjeta: #f7f0e3; }
+body.nivel-4 { --tramado-opacidad: .2; --fondo: #cdbd9c; --tarjeta: #eee3cf; --acento: #d98aa9; }
+body.nivel-5 { --tramado-opacidad: .28; --fondo: #a89676; --tarjeta: #e4d6bb; --acento: #c26a8b; --tinta: #3a2e2a; }
+
+body.nivel-2 .tarjeta,
+body.nivel-3 .tarjeta,
+body.nivel-4 .tarjeta,
+body.nivel-5 .tarjeta {
+  text-shadow: 1px 0 rgba(255, 0, 80, .45), -1px 0 rgba(0, 190, 255, .45);
+}
+
+/* El filtro SVG solo en la tarjeta: en elementos fijos o escalados (los botones) Chrome los hace desaparecer. */
+body.nivel-3 .tarjeta,
+body.nivel-4 .tarjeta,
+body.nivel-5 .tarjeta {
+  filter: url(#pixelar);
+}
+
+/* Los botones se «pixelan» con bordes duros. */
+body.nivel-3 .btn, body.nivel-4 .btn { border-radius: 6px; box-shadow: 3px 3px 0 rgba(58, 46, 42, .25); }
+body.nivel-5 .btn { border-radius: 0; box-shadow: 4px 4px 0 rgba(58, 46, 42, .35); }
+body.nivel-5 .si-media { border-radius: 0; }
+
+/* Sacudida por golpe. main.js la limita a 3 por segundo. */
+#app.sacudida { animation: sacudida 150ms steps(3); }
+@keyframes sacudida {
+  0% { transform: translate(3px, -2px); }
+  33% { transform: translate(-3px, 2px); }
+  66% { transform: translate(2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ---------- Pantallas negras ---------- */
+
+.negro {
+  position: fixed; inset: 0; z-index: 40;
+  background: #000;
+  color: #e9e2c8;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+.ojos { position: relative; width: 100%; height: 100%; }
+/* Medidas en vmin: la cara del ente tiene el mismo tamaño relativo en móvil y en PC. */
+.ojo {
+  position: absolute; top: 46%;
+  width: 3.6vmin; height: 2.2vmin;
+  border-radius: 50%;
+  background: #ff1a1a;
+  box-shadow: 0 0 2.5vmin .8vmin rgba(255, 26, 26, .8), 0 0 10vmin 3vmin rgba(160, 0, 0, .45);
+}
+.ojo.izq { left: calc(50% - 8vmin - 1.8vmin); }
+.ojo.der { left: calc(50% + 8vmin - 1.8vmin); top: 45.6%; }
+
+.qtv { width: min(90vw, 560px); height: auto; image-rendering: pixelated; }
+
+.gracias { margin: 0; font-size: clamp(22px, 7vw, 40px); letter-spacing: .06em; text-align: center; padding: 0 16px; }
+.otra-vez {
+  position: absolute; bottom: max(32px, env(safe-area-inset-bottom));
+  font: inherit; font-size: 15px; color: #8a8270;
+  background: none; border: 0; padding: 12px 18px;
+  text-decoration: underline; text-underline-offset: 4px;
+  cursor: pointer; touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app.sacudida { animation: none; }
+  .pensando::after { animation: none; width: auto; }
+}

@@ -2,42 +2,27 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#f6efe4">
 <title>quiero tu vida</title>
-<style>
-  html, body { margin: 0; height: 100%; background: #000; }
-  body {
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    color: #e9e2c8;
-    font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
-  }
-  h1 {
-    margin: 0;
-    padding: 0 16px;
-    font-size: clamp(28px, 9vw, 72px);
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-align: center;
-    text-transform: uppercase;
-    animation: temblor 4s steps(1) infinite;
-  }
-  /* Temblor leve de posición, sin cambios de brillo. */
-  @keyframes temblor {
-    0%, 100% { transform: translate(0, 0); }
-    12% { transform: translate(1px, -1px); }
-    13% { transform: translate(-1px, 1px); }
-    14% { transform: translate(0, 0); }
-    61% { transform: translate(-2px, 0); }
-    62% { transform: translate(1px, 1px); }
-    63% { transform: translate(0, 0); }
-  }
-  @media (prefers-reduced-motion: reduce) { h1 { animation: none; } }
-</style>
+<link rel="stylesheet" href="css/encuesta.css">
 </head>
-<body>
-  <h1>quiero tu vida</h1>
+<body class="nivel-0">
+  <main id="app"></main>
+  <div id="tramado" aria-hidden="true"></div>
+
+  <!-- Filtro de pixelado. El tamaño de bloque lo ajusta main.js según el nivel. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="pixelar" x="0" y="0" width="100%" height="100%">
+      <feFlood id="pix-flood" x="1" y="1" width="1" height="1"/>
+      <feComposite id="pix-tile" width="2" height="2"/>
+      <feTile result="rejilla"/>
+      <feComposite in="SourceGraphic" in2="rejilla" operator="in"/>
+      <feMorphology id="pix-dilate" operator="dilate" radius="1"/>
+    </filter>
+  </svg>
+
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
