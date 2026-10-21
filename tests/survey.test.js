@@ -1,59 +1,116 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSurvey, answer, unlock, afterEyes, glitchLevel } from '../js/survey.js';
+import {
+  STEPS, createSurvey, currentStep, isAuto, questionNumber, answer, advance, unlock, glitchLevel,
+  DESTELLO_MS, DESTELLO_GAP_MS,
+} from '../js/survey.js';
 
-const at = (step, loop = 1) => ({ step, loop, locked: false, ended: null });
+const ORDEN = ['inicio', 'nombre', 'despertar', 'estres', 'tipica', 'corre', 'amigos', 'familia',
+  'madre', 'ente', 'morir', 'buscan', 'lugar', 'aqui', 'final'];
+
+const at = (id, extra = {}) => ({ index: ORDEN.indexOf(id), loop: 1, locked: false, ended: null, nombre: 'Lucía', ...extra });
+
+// Avanza un paso como lo haría la interfaz: responde o deja pasar el automático, y desbloquea.
+function step(s) {
+  const st = currentStep(s);
+  if (isAuto(st)) return advance(s);
+  if (st.kind === 'nombre') return unlock(answer(s, 'Lucía'));
+  return unlock(answer(s, 'si'));
+}
+
+test('STEPS sigue el orden del spec', () => {
+  assert.deepEqual(STEPS.map((x) => x.id), ORDEN);
+});
 
 test('createSurvey devuelve el estado inicial', () => {
-  assert.deepEqual(createSurvey(), { step: 'q1', loop: 1, locked: false, ended: null });
+  assert.deepEqual(createSurvey(), { index: 0, loop: 1, locked: false, ended: null, nombre: '' });
 });
 
-test('q1 → q2 → ojos → q3, con bloqueo tras cada respuesta', () => {
-  let s = answer(createSurvey(), 'si');
-  assert.deepEqual(s, { step: 'q2', loop: 1, locked: true, ended: null });
-  s = answer(unlock(s), 'no');
-  assert.equal(s.step, 'ojos');
-  s = afterEyes(s);
-  assert.deepEqual(s, { step: 'q3', loop: 1, locked: false, ended: null });
-  s = answer(s, 'no');
-  assert.equal(s.step, 'q4');
+test('recorrido completo hasta la pregunta final', () => {
+  let s = createSurvey();
+  const vistos = [currentStep(s).id];
+  while (currentStep(s).id !== 'final') { s = step(s); vistos.push(currentStep(s).id); }
+  assert.deepEqual(vistos, ORDEN);
+  assert.equal(s.nombre, 'Lucía');
 });
 
-test('answer ignora toques mientras está bloqueado', () => {
-  const s = answer(createSurvey(), 'si');
-  assert.equal(answer(s, 'si'), s);
-  assert.equal(answer(s, 'no'), s);
+test('inicio pasa sin bloquear', () => {
+  const s = answer(createSurvey(), 'empezar');
+  assert.equal(currentStep(s).id, 'nombre');
+  assert.equal(s.locked, false);
 });
 
-test('Sí a la primera en q4 lleva al final 2', () => {
-  assert.equal(answer(at('q4'), 'si').ended, 'final2');
+test('nombre vacío o con solo espacios no avanza', () => {
+  const s = at('nombre', { nombre: '' });
+  assert.equal(answer(s, ''), s);
+  assert.equal(answer(s, '   '), s);
 });
 
-test('No en q4 sube la vuelta hasta 5 y el Sí forzado lleva al pasillo', () => {
-  let s = at('q4');
-  for (let i = 0; i < 4; i++) s = unlock(answer(s, 'no'));
+test('nombre se recorta y se limita a 20 caracteres', () => {
+  const s = answer(at('nombre', { nombre: '' }), '  <b>Maximiliano Fernández de la Peña</b>  ');
+  assert.equal(s.nombre, '<b>Maximiliano Ferná');
+  assert.equal([...s.nombre].length, 20);
+  assert.equal(currentStep(s).id, 'despertar');
+  assert.equal(s.locked, true);
+});
+
+test('answer ignora toques bloqueados, pasos automáticos y encuesta terminada', () => {
+  const bloqueado = answer(at('amigos'), 'si');
+  assert.equal(answer(bloqueado, 'no'), bloqueado);
+  const auto = at('corre');
+  assert.equal(answer(auto, 'si'), auto);
+  const fin = answer(at('final'), 'si');
+  assert.equal(answer(fin, 'no'), fin);
+});
+
+test('advance solo actúa en pasos automáticos', () => {
+  const s = at('amigos');
+  assert.equal(advance(s), s);
+  const t = advance(at('tipica', { locked: true }));
+  assert.equal(currentStep(t).id, 'corre');
+  assert.equal(t.locked, false);
+});
+
+test('final: No pasa al instante, sin bloquear, con tope 5', () => {
+  let s = at('final');
+  for (let i = 0; i < 6; i++) { s = answer(s, 'no'); assert.equal(s.locked, false); }
   assert.equal(s.loop, 5);
-  assert.equal(s.step, 'q4');
-  s = unlock(answer(s, 'no'));
-  assert.equal(s.loop, 5);
-  assert.equal(answer(s, 'si').ended, 'pasillo');
+  assert.equal(currentStep(s).id, 'final');
 });
 
-test('answer no hace nada cuando la encuesta terminó', () => {
-  const s = answer(at('q4'), 'si');
-  assert.equal(answer(s, 'no'), s);
+test('final: Sí a la primera es final2 y forzado es pasillo', () => {
+  assert.equal(answer(at('final'), 'si').ended, 'final2');
+  assert.equal(answer(at('final', { loop: 2 }), 'si').ended, 'pasillo');
 });
 
-test('afterEyes solo actúa en el paso de los ojos', () => {
-  const s = at('q2');
-  assert.equal(afterEyes(s), s);
+test('questionNumber cuenta las preguntas a partir del despertar', () => {
+  assert.equal(questionNumber(at('despertar')), 1);
+  assert.equal(questionNumber(at('tipica')), 3);
+  assert.equal(questionNumber(at('amigos')), 4);
+  assert.equal(questionNumber(at('lugar')), 8);
+  assert.equal(questionNumber(at('final')), 9);
 });
 
-test('glitchLevel crece con la pregunta y la vuelta', () => {
-  assert.equal(glitchLevel(at('q1')), 0);
-  assert.equal(glitchLevel(at('q2')), 1);
-  assert.equal(glitchLevel(at('q3')), 2);
-  assert.equal(glitchLevel(at('q4', 1)), 3);
-  assert.equal(glitchLevel(at('q4', 3)), 5);
-  assert.equal(glitchLevel(at('q4', 5)), 5);
+test('glitchLevel crece y la final llega a 5', () => {
+  assert.equal(glitchLevel(at('despertar')), 0);
+  assert.ok(glitchLevel(at('amigos')) >= glitchLevel(at('estres')));
+  assert.ok(glitchLevel(at('lugar')) >= glitchLevel(at('morir')));
+  assert.equal(glitchLevel(at('final')), 4);
+  assert.equal(glitchLevel(at('final', { loop: 2 })), 5);
+  assert.equal(glitchLevel(at('final', { loop: 5 })), 5);
+});
+
+test('ningún paso de destellos pasa de 3 por segundo', () => {
+  const periodo = DESTELLO_MS + DESTELLO_GAP_MS;
+  for (const st of STEPS.filter((x) => x.kind === 'destellos')) {
+    assert.ok(st.textos.length >= 1);
+    assert.ok(Math.min(st.textos.length, Math.floor(999 / periodo) + 1) <= 3);
+  }
+  assert.ok(Math.floor(999 / periodo) + 1 <= 3);
+});
+
+test('las preguntas de bienestar tienen golpes desde el principio', () => {
+  const despertar = STEPS.find((x) => x.id === 'despertar');
+  assert.ok(despertar.thumps >= 1 && despertar.delay > 0);
+  assert.equal(STEPS.find((x) => x.id === 'final').thumps, undefined);
 });
