@@ -1,6 +1,12 @@
 /* Encuesta: empieza como una IA amable y se va corrompiendo por niveles (body.nivel-0 a nivel-5). */
 
 @font-face {
+  font-family: "Jacquard 24";
+  src: url("../fonts/Jacquard24-latin.woff2") format("woff2");
+  font-display: block;
+}
+
+@font-face {
   font-family: "Rubik Wet Paint";
   src: url("../fonts/RubikWetPaint-latin.woff2") format("woff2");
   font-display: block;
@@ -141,7 +147,7 @@ body.bloqueado .btn { cursor: progress; opacity: .6; }
 .btn-no { transform: scale(var(--escala, 1)); }
 .no-movido { order: -1; margin-top: 64px; }
 /* Por encima de la tarjeta (z-index 12): el No que se mueve no puede quedar tapado. */
-.no-huye { position: fixed; z-index: 13; transition: left .12s, top .12s; }
+.no-huye.suelto { position: fixed; z-index: 13; transition: left .12s, top .12s; }
 .no-esquina { position: fixed; right: 10px; bottom: 10px; z-index: 13; transform-origin: bottom right; }
 .no-oculto { display: none; }
 
@@ -189,7 +195,7 @@ body.nivel-5 .btn { border-radius: 0; box-shadow: 4px 4px 0 rgba(58, 46, 42, .35
 body.nivel-5 .si-media { border-radius: 0; }
 
 /* Sacudida por golpe. main.js la limita a 3 por segundo. */
-#app.sacudida { animation: sacudida 150ms steps(3); }
+.sacudida { animation: sacudida 150ms steps(3); }
 @keyframes sacudida {
   0% { transform: translate(3px, -2px); }
   33% { transform: translate(-3px, 2px); }
@@ -224,21 +230,45 @@ body.nivel-5 .si-media { border-radius: 0; }
 /* El ente: silueta apenas recortada contra el negro. */
 .ente-svg { height: min(86vh, 160vw); width: auto; image-rendering: pixelated; }
 .ente-svg.tenue { position: absolute; opacity: .55; }
+/* Gótica pixelada: PS1 y tenebrosa. */
 .destello {
   position: relative;
   margin: 0;
   padding: 0 12px;
-  font-family: "Rubik Wet Paint", ui-monospace, monospace;
-  font-size: clamp(54px, 19vw, 160px);
-  line-height: 1;
+  font-family: "Jacquard 24", ui-monospace, monospace;
+  font-weight: 400;
+  font-size: clamp(72px, 26vw, 220px);
+  line-height: .9;
   color: #c4121b;
   text-align: center;
+  text-shadow: 3px 3px 0 #3a0003;
 }
+
+.rayado { width: 100vw; height: 100vh; height: 100dvh; image-rendering: pixelated; }
+
+/* Sombra de una mano de dedos largos agarrando la tarjeta. */
+.mano-sombra {
+  position: fixed; z-index: 14; width: 150px; height: auto; transform-origin: 50% 0;
+  fill: rgba(20, 10, 10, .32);
+  filter: blur(1.5px);
+  pointer-events: none;
+  animation: agarra 2.8s ease-out both;
+}
+@keyframes agarra { from { transform: translateY(-26px) rotate(-6deg); opacity: 0; } to { transform: translateY(0) rotate(-6deg); opacity: 1; } }
 
 /* ---------- Inicio y nombre ---------- */
 
 .inicio { text-align: center; }
-.avatar.grande { width: 72px; height: 72px; font-size: 22px; margin: 0 auto 14px; }
+.avatar.grande { position: relative; width: 72px; height: 72px; font-size: 22px; margin: 0 auto 14px; }
+/* Saludo: la carita da un saltito y agita la mano. */
+.avatar.saluda { animation: saltito .5s ease-out .2s 2; }
+@keyframes saltito { 50% { transform: translateY(-8px); } }
+.mano-saludo {
+  position: absolute; right: -22px; bottom: -2px; font-size: 28px;
+  transform-origin: 70% 90%;
+  animation: saludar .4s ease-in-out .3s 4;
+}
+@keyframes saludar { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(22deg); } 75% { transform: rotate(-14deg); } }
 .saludo { margin: 0 0 6px; font-weight: 700; color: var(--acento-fuerte); }
 .inicio .pregunta { font-size: clamp(22px, 6vw, 28px); }
 .volumen { margin: 16px 0 0; font-size: 13px; color: var(--tinta-suave); }
@@ -287,6 +317,7 @@ body.nivel-5 .si-media { border-radius: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #app.sacudida { animation: none; }
+  .sacudida { animation: none; }
+  .avatar.saluda, .mano-saludo, .mano-sombra { animation: none; }
   .pensando::after { animation: none; width: auto; }
 }

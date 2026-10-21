@@ -1,14 +1,13 @@
 // Flujo de la encuesta: pinta cada paso, programa esperas, golpes, gritos y destellos, y entrega el camino al juego.
 
 import {
-  createSurvey, currentStep, answer, advance, unlock, glitchLevel,
-  DESTELLO_MS, DESTELLO_GAP_MS, ENTE_MS,
+  createSurvey, currentStep, answer, advance, unlock, glitchLevel, ENTE_MS, RAYADO_MS,
 } from './survey.js';
 import { createRng, createFlashGuard } from './glitch.js';
-import { unlockAudio, thump, scream } from './audio.js';
+import { unlockAudio, thump, scream, tapeStop } from './audio.js';
 import { startMusic, setMusicLevel, stopMusic } from './music.js';
 import {
-  renderInicio, renderNombre, renderQuestion, renderCortada, renderDestello, renderEnte,
+  renderInicio, renderNombre, renderQuestion, renderCortada, renderDestello, renderEnte, renderRayado,
   renderQuieroTuVida, renderBlack, renderMuerte,
 } from './screens.js';
 
@@ -18,6 +17,9 @@ const SCRAMBLE_MS = 700;
 const SHAKE_MS = 150;
 const GRITO_MS = 3200;
 const CON_GRITOS = new Set(['lugar', 'aqui']);
+// Pregunta final: la puerta golpea sin parar y los gritos suenan fuertes, sin filtro.
+const GOLPETEO_MS = 650;
+const GRITO_FUERTE_MS = 3500;
 // Bloque del filtro de pixelado por nivel (0 = sin filtro).
 const PIXEL = [0, 0, 0, 2, 3, 4];
 
@@ -31,6 +33,8 @@ let view = null;
 let timers = [];
 let scrambleTimer = null;
 let gritoTimer = null;
+let golpeteoTimer = null;
+let golpeteoGritos = null;
 
 function later(fn, ms) {
   timers.push(setTimeout(fn, ms));
@@ -68,15 +72,17 @@ function makeDither() {
   document.documentElement.style.setProperty('--tramado-img', `url(${c.toDataURL()})`);
 }
 
-// Golpe visible: sacude la pantalla y la oscurece un instante. Pasa por el límite de destellos.
+// Golpe visible: sacude la tarjeta y oscurece la pantalla un instante. Pasa por el límite de destellos.
+// Se sacude la tarjeta y no #app: un transform en #app movería los botones fijos (el Sí gigante, el No suelto).
 function golpeVisible() {
   if (!guard.tryFlash(performance.now())) return;
-  app.classList.remove('sacudida');
+  const blanco = app.querySelector('.tarjeta') || app;
+  blanco.classList.remove('sacudida');
   apagon.classList.remove('on');
-  void app.offsetWidth;
-  app.classList.add('sacudida');
+  void blanco.offsetWidth;
+  blanco.classList.add('sacudida');
   apagon.classList.add('on');
-  later(() => { app.classList.remove('sacudida'); apagon.classList.remove('on'); }, SHAKE_MS);
+  later(() => { blanco.classList.remove('sacudida'); apagon.classList.remove('on'); }, SHAKE_MS);
 }
 
 function destroyView() {
@@ -96,6 +102,21 @@ function gritos(activos) {
   }
 }
 
+function golpeteo(activo) {
+  if (activo && !golpeteoTimer) {
+    scream(0.95, false);
+    const tic = () => { thump(0.7 + Math.random() * 0.25); golpeVisible(); };
+    tic();
+    golpeteoTimer = setInterval(tic, GOLPETEO_MS);
+    golpeteoGritos = setInterval(() => scream(0.8 + Math.random() * 0.2, false), GRITO_FUERTE_MS);
+  } else if (!activo && golpeteoTimer) {
+    clearInterval(golpeteoTimer);
+    clearInterval(golpeteoGritos);
+    golpeteoTimer = null;
+    golpeteoGritos = null;
+  }
+}
+
 function paint() {
   destroyView();
   const st = currentStep(state);
@@ -103,6 +124,7 @@ function paint() {
   setNivel(level);
   setMusicLevel(level);
   gritos(CON_GRITOS.has(st.id));
+  golpeteo(Boolean(st.golpeteo));
 
   switch (st.kind) {
     case 'inicio':
@@ -115,7 +137,14 @@ function paint() {
       view = renderCortada(app, state, rng, () => { state = advance(state); paint(); });
       break;
     case 'destellos':
-      runDestellos(st.textos);
+      runDestellos(st);
+      break;
+    case 'rayado':
+      // La música se para como una cinta y suena el zumbido; luego vuelve, más rota.
+      stopMusic();
+      tapeStop(RAYADO_MS / 1000);
+      view = renderRayado(app, rng, RAYADO_MS);
+      later(() => { startMusic(); state = advance(state); paint(); }, RAYADO_MS);
       break;
     case 'ente':
       renderEnte(app);
@@ -127,17 +156,17 @@ function paint() {
   }
 }
 
-// Destellos de texto de DESTELLO_MS con DESTELLO_GAP_MS de negro entre ellos (≤ 3 por segundo).
-function runDestellos(textos) {
+// Destellos de texto de step.ms con step.gap de negro entre ellos (≤ 3 por segundo).
+function runDestellos(step) {
   renderBlack(app);
-  const periodo = DESTELLO_MS + DESTELLO_GAP_MS;
-  textos.forEach((texto, i) => {
+  const periodo = step.ms + step.gap;
+  step.textos.forEach((texto, i) => {
     later(() => {
       if (guard.tryFlash(performance.now())) renderDestello(app, texto);
-      later(() => renderBlack(app), DESTELLO_MS);
-    }, DESTELLO_GAP_MS + i * periodo);
+      later(() => renderBlack(app), step.ms);
+    }, step.gap + i * periodo);
   });
-  later(() => { state = advance(state); paint(); }, DESTELLO_GAP_MS + textos.length * periodo);
+  later(() => { state = advance(state); paint(); }, step.gap + step.textos.length * periodo);
 }
 
 function onStart() {
@@ -184,6 +213,7 @@ function finish(camino) {
   clearTimers();
   destroyView();
   gritos(false);
+  golpeteo(false);
   stopMusic();
   setNivel(5);
   thump(1);
@@ -203,6 +233,7 @@ function finish(camino) {
 function start() {
   clearTimers();
   gritos(false);
+  golpeteo(false);
   stopMusic();
   state = createSurvey();
   paint();

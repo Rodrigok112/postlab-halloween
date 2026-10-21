@@ -1,15 +1,16 @@
 // Pantallas de la encuesta. Solo DOM: la lógica vive en survey.js, layout.js y texts.js.
 // Todo texto del usuario (el nombre) se pinta con textContent, nunca como HTML.
 
-import { buttonsFor, fleePosition } from './layout.js';
-import { textFor, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE } from './texts.js';
+import { buttonsFor, fleePosition, createFleeBudget } from './layout.js';
+import { textFor, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS } from './texts.js';
 import { corrupt } from './glitch.js';
 import { glitchLevel, questionNumber, currentStep, MAX_NOMBRE } from './survey.js';
 
 const CARAS = ['◕‿◕', '◕‿◕', '◕‿◕', '◕_◕', '•_•', '●_●'];
-const FLEE_RADIUS = 120;
-// Huye unas veces y luego se deja tocar: si no, en móvil las vueltas 4 y 5 serían inalcanzables.
+const FLEE_RADIUS = 110;
+// Huye 3 veces, con un respiro entre huidas para que cada una se note, y luego se deja tocar.
 const MAX_FLEES = 3;
+const FLEE_COOLDOWN_MS = 300;
 const TECLEO_MS = 45;
 const CORTE_MS = 500;
 
@@ -22,9 +23,9 @@ function el(tag, className, text) {
   return node;
 }
 
-function cabecera(level, rng) {
+function cabecera(level, rng, sinCara = false) {
   const ia = el('header', 'ia');
-  ia.append(el('div', 'avatar', CARAS[level]));
+  if (!sinCara) ia.append(el('div', 'avatar', CARAS[level]));
   const iaTexto = el('div');
   const titulo = el('p', 'ia-titulo', corrupt(HEADER.title, level, rng));
   iaTexto.append(titulo, el('p', 'ia-sub', HEADER.sub));
@@ -34,10 +35,13 @@ function cabecera(level, rng) {
 
 const sinEstado = () => document.body.classList.remove('bloqueado', 'si-tapa', 'si-completa-activo');
 
+// Inicio: la carita saluda con la mano, sonríe y parpadea de vez en cuando.
 export function renderInicio(root, onStart) {
   root.replaceChildren();
   const tarjeta = el('section', 'tarjeta inicio');
-  const avatar = el('div', 'avatar grande', CARAS[0]);
+  const avatar = el('div', 'avatar grande saluda');
+  const cara = el('span', 'cara', CARAS[0]);
+  avatar.append(cara, el('span', 'mano-saludo', '👋'));
   const boton = el('button', 'btn btn-si', INICIO.boton);
   boton.type = 'button';
   boton.addEventListener('click', onStart);
@@ -46,7 +50,20 @@ export function renderInicio(root, onStart) {
   const fila = el('div', 'botones');
   fila.append(boton);
   root.append(tarjeta, fila);
-  return { destroy: sinEstado, setLocked() {}, scramble() {} };
+
+  const timers = [
+    setTimeout(() => { cara.textContent = '^‿^'; }, 300),
+    setTimeout(() => { cara.textContent = CARAS[0]; }, 1900),
+  ];
+  const parpadeo = setInterval(() => {
+    cara.textContent = '−‿−';
+    timers.push(setTimeout(() => { cara.textContent = CARAS[0]; }, 140));
+  }, 3200);
+  return {
+    destroy() { timers.forEach(clearTimeout); clearInterval(parpadeo); sinEstado(); },
+    setLocked() {},
+    scramble() {},
+  };
 }
 
 export function renderNombre(root, onSubmit, rng) {
@@ -66,10 +83,17 @@ export function renderNombre(root, onSubmit, rng) {
   boton.type = 'submit';
   form.append(input, boton);
   form.addEventListener('submit', (ev) => { ev.preventDefault(); onSubmit(input.value); });
-  tarjeta.append(ia, el('h1', 'pregunta', NOMBRE.title), form, el('p', 'aviso', NOMBRE.aviso), el('p', 'pensando', 'anotado'));
+  // Primero se le escapa la versión borde y al segundo se corrige sola, con un glitch.
+  const aviso = el('p', 'aviso', NOMBRE.avisoBorde);
+  tarjeta.append(ia, el('h1', 'pregunta', NOMBRE.title), form, aviso, el('p', 'pensando', 'anotado'));
   root.append(tarjeta);
+  const timers = [
+    setTimeout(() => { aviso.textContent = corrupt(NOMBRE.avisoBorde, 3, rng); }, NOMBRE.cambioMs),
+    setTimeout(() => { aviso.textContent = corrupt(NOMBRE.aviso, 2, rng); }, NOMBRE.cambioMs + 90),
+    setTimeout(() => { aviso.textContent = NOMBRE.aviso; }, NOMBRE.cambioMs + 180),
+  ];
   return {
-    destroy: sinEstado,
+    destroy() { timers.forEach(clearTimeout); sinEstado(); },
     setLocked(locked) { document.body.classList.toggle('bloqueado', locked); input.disabled = locked; },
     scramble() {},
     rechazar() {
@@ -90,11 +114,13 @@ export function renderQuestion(root, s, onAnswer, rng) {
   const botones = esFinal ? buttonsFor(s.loop) : buttonsFor(1);
   const [opA, opB] = texto.opciones;
 
+  const paso = currentStep(s);
   const tarjeta = el('section', 'tarjeta');
-  const { ia, titulo } = cabecera(level, rng);
+  const { ia, titulo } = cabecera(level, rng, paso.sinCara);
   const pregunta = el('h1', 'pregunta');
   const sub = el('p', 'sub');
   tarjeta.append(ia, el('p', 'contador', `pregunta ${questionNumber(s)} de 3`), pregunta, sub, el('p', 'pensando', 'anotado'));
+  const mano = paso.mano ? manoSombra() : null;
 
   const fila = el('div', 'botones');
   const si = el('button', `btn btn-si si-${botones.si.size}`, opA.label);
@@ -105,6 +131,13 @@ export function renderQuestion(root, s, onAnswer, rng) {
   no.addEventListener('click', () => onAnswer(opB.value));
   fila.append(si, no);
   root.append(tarjeta, fila);
+  if (mano) {
+    // Fuera de la tarjeta (su filtro de pixelado borraría los dedos), anclada a su esquina superior derecha.
+    root.append(mano);
+    const r = tarjeta.getBoundingClientRect();
+    mano.style.top = `${r.top - 52}px`;
+    mano.style.left = `${r.right - 170}px`;
+  }
 
   document.body.classList.toggle('si-tapa', botones.si.size === 'media' || botones.si.size === 'completa');
   document.body.classList.toggle('si-completa-activo', botones.si.size === 'completa');
@@ -113,25 +146,29 @@ export function renderQuestion(root, s, onAnswer, rng) {
   const corromper = (t, lvl) => (s.nombre && t.includes(s.nombre)
     ? t.split(s.nombre).map((parte) => corrupt(parte, lvl, rng)).join(s.nombre)
     : corrupt(t, lvl, rng));
+  // Píxeles rotos en la pregunta desde el nivel 1, sin llegar a hacerla ilegible.
+  const rotura = [0, 1, 1, 1, 2, 2][level];
+  let extra = texto.extra;
   const scramble = () => {
     titulo.textContent = corrupt(HEADER.title, level, rng);
-    pregunta.textContent = corromper(texto.title, Math.max(0, level - 3));
-    sub.textContent = corrupt(texto.sub, Math.max(0, level - 3), rng);
+    pregunta.textContent = corromper(texto.title, rotura) + extra;
+    sub.textContent = corrupt(texto.sub, rotura, rng);
   };
   scramble();
 
   const cleanups = [];
+  if (extra) {
+    const t = setTimeout(() => { extra = ''; scramble(); }, JEJE_MS);
+    cleanups.push(() => clearTimeout(t));
+  }
   if (botones.no.mode === 'huye') {
-    const place = (p) => { no.style.left = `${p.x}px`; no.style.top = `${p.y}px`; };
-    const rect = no.getBoundingClientRect();
-    place({ x: (window.innerWidth - rect.width) / 2, y: window.innerHeight * 0.78 });
-    let flees = 0;
+    // Empieza en su sitio; en la primera huida se suelta y pasa a moverse por toda la pantalla.
+    const place = (p) => { no.classList.add('suelto'); no.style.left = `${p.x}px`; no.style.top = `${p.y}px`; };
+    const budget = createFleeBudget(MAX_FLEES, FLEE_COOLDOWN_MS);
     const flee = (ev) => {
-      if (flees >= MAX_FLEES) return;
       const r = no.getBoundingClientRect();
       const d = Math.hypot(r.left + r.width / 2 - ev.clientX, r.top + r.height / 2 - ev.clientY);
-      if (d >= FLEE_RADIUS) return;
-      flees++;
+      if (d >= FLEE_RADIUS || !budget.tryFlee(performance.now())) return;
       place(fleePosition(
         { w: window.innerWidth, h: window.innerHeight },
         { w: r.width, h: r.height },
@@ -214,6 +251,75 @@ function enteSvg() {
   if (enteImagen.complete) dibujar();
   else enteImagen.addEventListener('load', dibujar, { once: true });
   return canvas;
+}
+
+// Sombra de una mano de dedos larguísimos que agarra la tarjeta desde arriba.
+function manoSombra() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 150 250');
+  svg.setAttribute('class', 'mano-sombra');
+  svg.setAttribute('aria-hidden', 'true');
+  // Cada dedo: tres falanges (nudillos marcados) que se afinan hacia la punta.
+  // La palma queda fuera, por encima de la tarjeta: solo asoman los dedos, que se doblan sobre el borde.
+  const dedos = [
+    [[46, 0], [34, 44], [20, 104], [12, 160], [20, 190]],
+    [[64, 0], [58, 50], [50, 124], [46, 196], [56, 234]],
+    [[84, 0], [90, 50], [98, 120], [104, 188], [96, 224]],
+    [[102, 0], [116, 44], [130, 96], [138, 140], [130, 166]],
+  ];
+  const tramo = (a, b, grosor) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke-width="${grosor}"/>`;
+  const lineas = dedos.map((d) => d.slice(1).map((p, i) => tramo(d[i], p, 10 - i * 1.9)).join('')).join('');
+  svg.innerHTML = `<g opacity=".3" stroke="#140a0a" stroke-linecap="round">${lineas}</g>`;
+  return svg;
+}
+
+// Página «rayada»: el ente detrás y la imagen rompiéndose como una señal digital dañada.
+export function renderRayado(root, rng, ms) {
+  const negro = pantallaNegra(root);
+  const w = 96;
+  const h = Math.round((w * window.innerHeight) / Math.max(1, window.innerWidth));
+  const canvas = el('canvas', 'rayado');
+  canvas.width = w;
+  canvas.height = h;
+  canvas.setAttribute('aria-hidden', 'true');
+  negro.append(canvas);
+  const g = canvas.getContext('2d');
+  const eh = Math.round(h * 0.82);
+  const ew = Math.round((eh * ENTE_W) / ENTE_H);
+  const colores = ['rgba(255,0,90,.55)', 'rgba(0,220,255,.5)', 'rgba(60,255,90,.45)', 'rgba(255,255,255,.35)'];
+  let rodar = 0;
+  const frame = () => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, w, h);
+    if (enteImagen.complete) g.drawImage(enteImagen, (w - ew) / 2 + (rng() < 0.2 ? 2 : 0), (h - eh) / 2 + rodar, ew, eh);
+    // Franjas desplazadas en horizontal.
+    for (let k = 0; k < 7; k++) {
+      const y = Math.floor(rng() * h);
+      const bh = 1 + Math.floor(rng() * 6);
+      const dx = Math.round((rng() * 2 - 1) * 24);
+      g.drawImage(canvas, 0, y, w, bh, dx, y, w, bh);
+    }
+    // Bloques de 8 px copiados fuera de sitio, como un vídeo comprimido que se rompe.
+    for (let k = 0; k < 5; k++) {
+      const sx = Math.floor(rng() * (w - 8)), sy = Math.floor(rng() * (h - 8));
+      g.drawImage(canvas, sx, sy, 8, 8, sx + Math.round((rng() * 2 - 1) * 16), sy + Math.round((rng() * 2 - 1) * 10), 8, 8);
+    }
+    // Líneas de color y ruido.
+    for (let k = 0; k < 4; k++) {
+      g.fillStyle = colores[Math.floor(rng() * colores.length)];
+      g.fillRect(Math.floor(rng() * w * 0.5), Math.floor(rng() * h), Math.floor(w * (0.3 + rng() * 0.7)), 1);
+    }
+    for (let k = 0; k < 120; k++) {
+      const v = Math.floor(rng() * 160);
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(Math.floor(rng() * w), Math.floor(rng() * h), 1, 1);
+    }
+    if (rng() < 0.12) rodar = Math.round((rng() * 2 - 1) * h * 0.15);
+  };
+  frame();
+  const intervalo = setInterval(frame, 1000 / 24);
+  const fin = setTimeout(() => clearInterval(intervalo), ms);
+  return { destroy() { clearInterval(intervalo); clearTimeout(fin); }, setLocked() {}, scramble() {} };
 }
 
 function pantallaNegra(root) {

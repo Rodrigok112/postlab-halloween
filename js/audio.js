@@ -56,6 +56,46 @@ export function thump(strength) {
   hit.stop(t + 0.3);
 }
 
+// Cinta que se para: un acorde que cae hasta un zumbido grave y raro, con dos tonos casi iguales que baten.
+export function tapeStop(seconds = 2) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.setValueAtTime(3200, t);
+  lowpass.frequency.exponentialRampToValueAtTime(180, t + 1.1);
+  const caida = ctx.createGain();
+  caida.gain.setValueAtTime(0.22, t);
+  caida.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
+  lowpass.connect(caida).connect(ctx.destination);
+  for (const f of [220, 277, 330]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(22, t + 1.2);
+    o.connect(lowpass);
+    o.start(t);
+    o.stop(t + 1.35);
+  }
+
+  const zumbido = ctx.createGain();
+  zumbido.gain.setValueAtTime(0.0001, t + 0.7);
+  zumbido.gain.exponentialRampToValueAtTime(0.45, t + 1.0);
+  zumbido.gain.setValueAtTime(0.45, t + seconds - 0.25);
+  zumbido.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+  zumbido.connect(ctx.destination);
+  for (const [f, type] of [[42, 'sine'], [44.5, 'sine'], [21, 'square']]) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = f;
+    const g = ctx.createGain();
+    g.gain.value = type === 'square' ? 0.12 : 0.5;
+    o.connect(g).connect(zumbido);
+    o.start(t + 0.7);
+    o.stop(t + seconds + 0.05);
+  }
+}
+
 // Grito degradado. muffled: filtrado como si viniera del otro lado de la puerta.
 export function scream(strength, muffled = true) {
   if (!ctx) return;
