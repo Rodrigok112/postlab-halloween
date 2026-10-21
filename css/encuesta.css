@@ -1,5 +1,11 @@
 /* Encuesta: empieza como una IA amable y se va corrompiendo por niveles (body.nivel-0 a nivel-5). */
 
+@font-face {
+  font-family: "Rubik Wet Paint";
+  src: url("../fonts/RubikWetPaint-latin.woff2") format("woff2");
+  font-display: block;
+}
+
 :root {
   --fondo: #f6efe4;
   --tarjeta: #ffffff;
@@ -201,21 +207,77 @@ body.nivel-5 .si-media { border-radius: 0; }
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
 }
 
-.ojos { position: relative; width: 100%; height: 100%; }
-/* Medidas en vmin: la cara del ente tiene el mismo tamaño relativo en móvil y en PC. */
-.ojo {
-  position: absolute; top: 46%;
-  width: 3.6vmin; height: 2.2vmin;
-  border-radius: 50%;
-  background: #ff1a1a;
-  box-shadow: 0 0 2.5vmin .8vmin rgba(255, 26, 26, .8), 0 0 10vmin 3vmin rgba(160, 0, 0, .45);
-}
-.ojo.izq { left: calc(50% - 8vmin - 1.8vmin); }
-.ojo.der { left: calc(50% + 8vmin - 1.8vmin); top: 45.6%; }
-
 .qtv { width: min(90vw, 560px); height: auto; image-rendering: pixelated; }
 
-.gracias { margin: 0; font-size: clamp(22px, 7vw, 40px); letter-spacing: .06em; text-align: center; padding: 0 16px; }
+.muerte {
+  margin: 0;
+  padding: 0 16px;
+  font-family: "Rubik Wet Paint", ui-monospace, monospace;
+  font-weight: 400;
+  font-size: clamp(56px, 17vw, 150px);
+  line-height: 1;
+  color: #9e0b12;
+  text-align: center;
+  text-shadow: 0 0 24px rgba(158, 11, 18, .35);
+}
+
+/* El ente: silueta apenas recortada contra el negro. */
+.ente-svg { height: min(86vh, 160vw); width: auto; image-rendering: pixelated; }
+.ente-svg.tenue { position: absolute; opacity: .55; }
+.destello {
+  position: relative;
+  margin: 0;
+  padding: 0 12px;
+  font-family: "Rubik Wet Paint", ui-monospace, monospace;
+  font-size: clamp(54px, 19vw, 160px);
+  line-height: 1;
+  color: #c4121b;
+  text-align: center;
+}
+
+/* ---------- Inicio y nombre ---------- */
+
+.inicio { text-align: center; }
+.avatar.grande { width: 72px; height: 72px; font-size: 22px; margin: 0 auto 14px; }
+.saludo { margin: 0 0 6px; font-weight: 700; color: var(--acento-fuerte); }
+.inicio .pregunta { font-size: clamp(22px, 6vw, 28px); }
+.volumen { margin: 16px 0 0; font-size: 13px; color: var(--tinta-suave); }
+
+.nombre { display: flex; gap: 10px; margin-top: 16px; }
+.campo {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 18px; /* 16 px o más: iOS no hace zoom al enfocar */
+  padding: 12px 16px;
+  border: 2px solid #ece6f0;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--tinta);
+}
+.campo:focus { outline: none; border-color: var(--acento); }
+.campo.rechazo { animation: rechazo 300ms; border-color: var(--acento-fuerte); }
+@keyframes rechazo { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.nombre .btn { min-width: 0; padding: 12px 18px; font-size: 16px; }
+.aviso { margin: 12px 0 0; font-size: 13px; font-style: italic; color: var(--tinta-suave); }
+
+/* ---------- Pregunta típica cortada ---------- */
+
+.escala { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.escala span {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: #f3eef6; color: var(--tinta-suave); font-size: 13px; font-weight: 700;
+}
+.tarjeta.corte { transform: translate(-4px, 2px) skewX(-4deg); }
+
+/* ---------- Apagón por golpe ---------- */
+
+#apagon {
+  position: fixed; inset: 0; z-index: 35; pointer-events: none;
+  background: #000; opacity: 0;
+}
+#apagon.on { opacity: .6; }
 .otra-vez {
   position: absolute; bottom: max(32px, env(safe-area-inset-bottom));
   font: inherit; font-size: 15px; color: #8a8270;

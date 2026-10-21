@@ -1,7 +1,11 @@
-// Audio sintetizado con WebAudio. Los golpes de puerta se pueden cambiar por muestras de Freesound más adelante.
+// Audio sintetizado con WebAudio: contexto compartido, golpes de puerta y gritos.
+
+import { screamSamples } from './scream.js';
+import { createRng } from './glitch.js';
 
 let ctx = null;
 let noise = null;
+let screamBuffer = null;
 
 // Hay que llamarla dentro del manejador de un toque: los navegadores móviles no dejan sonar nada antes.
 export function unlockAudio() {
@@ -14,6 +18,10 @@ export function unlockAudio() {
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   }
   if (ctx.state === 'suspended') ctx.resume();
+}
+
+export function getContext() {
+  return ctx;
 }
 
 // Golpe grave de puerta. strength de 0 a 1.
@@ -46,4 +54,25 @@ export function thump(strength) {
   hit.connect(lowpass).connect(hitGain).connect(ctx.destination);
   hit.start(t);
   hit.stop(t + 0.3);
+}
+
+// Grito degradado. muffled: filtrado como si viniera del otro lado de la puerta.
+export function scream(strength, muffled = true) {
+  if (!ctx) return;
+  if (!screamBuffer) {
+    const data = screamSamples(ctx.sampleRate, 1.6, createRng(1031));
+    screamBuffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
+    screamBuffer.copyToChannel(data, 0);
+  }
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = screamBuffer;
+  src.playbackRate.value = 0.8 + Math.random() * 0.35;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = muffled ? 650 : 5000;
+  const gain = ctx.createGain();
+  gain.gain.value = Math.max(0, Math.min(strength, 1)) * (muffled ? 0.55 : 0.4);
+  src.connect(filter).connect(gain).connect(ctx.destination);
+  src.start(t);
 }
