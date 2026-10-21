@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buttonsFor, fleePosition, createFleeBudget } from '../js/layout.js';
+import { buttonsFor, buttonsForStep, fleePosition, createFleeBudget } from '../js/layout.js';
 import { createRng } from '../js/glitch.js';
 
 test('buttonsFor sigue la tabla del spec vuelta a vuelta', () => {
@@ -49,4 +49,11 @@ test('el No no se puede tocar hasta que haya huido 3 veces', () => {
   b.tryFlee(400);
   b.tryFlee(800);
   assert.equal(b.agotado(), true);
+});
+
+test('fuera de la pregunta final los botones son normales: el No nunca huye', () => {
+  assert.deepEqual(buttonsForStep(false, 1), { si: { size: 'normal' }, no: { scale: 1, mode: 'normal' } });
+  assert.deepEqual(buttonsForStep(false, 3), { si: { size: 'normal' }, no: { scale: 1, mode: 'normal' } });
+  assert.deepEqual(buttonsForStep(true, 1), buttonsFor(1));
+  assert.equal(buttonsForStep(true, 1).no.mode, 'huye');
 });

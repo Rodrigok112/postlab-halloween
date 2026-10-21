@@ -147,9 +147,9 @@ body.bloqueado .btn { cursor: progress; opacity: .6; }
 .btn-no { transform: scale(var(--escala, 1)); }
 .no-movido { order: -1; margin-top: 64px; }
 /* Por encima de la tarjeta (z-index 12): el No que se mueve no puede quedar tapado. */
-.no-huye.suelto { position: fixed; z-index: 13; transition: left .12s, top .12s; }
-/* Cada huida se nota: el No da un salto al escaparse. */
-.btn-no.salto { animation: salto .25s ease-out; }
+.no-huye.suelto { position: fixed; z-index: 13; }
+/* Cada huida se nota: el No salta a cortes, sin suavizado, como fotogramas que faltan. */
+.btn-no.salto { animation: salto .3s steps(1, end); }
 @keyframes salto { 0% { transform: scale(.6) rotate(-8deg); } 60% { transform: scale(1.15) rotate(4deg); } 100% { transform: scale(var(--escala, 1)); } }
 .contador.pasado { color: #b0123a; }
 .no-esquina { position: fixed; right: 10px; bottom: 10px; z-index: 13; transform-origin: bottom right; }

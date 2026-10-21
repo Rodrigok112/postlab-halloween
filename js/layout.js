@@ -13,6 +13,11 @@ export function buttonsFor(loop) {
   return { si: { ...row.si }, no: { ...row.no } };
 }
 
+// La tabla de vueltas solo aplica a la pregunta final; en las demás los botones son normales.
+export function buttonsForStep(esFinal, loop) {
+  return esFinal ? buttonsFor(loop) : { si: { size: 'normal' }, no: { scale: 1, mode: 'normal' } };
+}
+
 const MIN_DIST = 120;
 const TRIES = 20;
 

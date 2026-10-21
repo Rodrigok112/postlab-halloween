@@ -1,7 +1,7 @@
 // Pantallas de la encuesta. Solo DOM: la lógica vive en survey.js, layout.js y texts.js.
 // Todo texto del usuario (el nombre) se pinta con textContent, nunca como HTML.
 
-import { buttonsFor, fleePosition, createFleeBudget } from './layout.js';
+import { buttonsForStep, fleePosition, createFleeBudget } from './layout.js';
 import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO } from './texts.js';
 import { corrupt } from './glitch.js';
 import { glitchLevel, questionNumber, currentStep, MAX_NOMBRE } from './survey.js';
@@ -111,7 +111,7 @@ export function renderQuestion(root, s, onAnswer, rng) {
   const level = glitchLevel(s);
   const texto = textFor(s);
   const esFinal = currentStep(s).kind === 'final';
-  const botones = esFinal ? buttonsFor(s.loop) : buttonsFor(1);
+  const botones = buttonsForStep(esFinal, s.loop);
   const [opA, opB] = texto.opciones;
 
   const paso = currentStep(s);
