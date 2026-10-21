@@ -13,9 +13,12 @@ export const INICIO = {
   boton: 'Empezar',
 };
 
+// La IA suelta avisoBorde y a los cambioMs se corrige sola con aviso.
 export const NOMBRE = {
   title: '¿cómo te llamas?',
-  aviso: 'te recordaré para siempre, así que no pongas tu nombre de Habbo.',
+  avisoBorde: 'te recordaré para siempre, así que mejor no pongas un nombre de mierda.',
+  aviso: 'te recordaré para siempre, así que no pongas tu usuario de Club Penguin.',
+  cambioMs: 1000,
   placeholder: 'tu nombre',
   boton: 'Continuar',
 };
@@ -23,12 +26,17 @@ export const NOMBRE = {
 export const MUERTE = { title: 'HAS MUERTO', boton: 'otra vez' };
 
 // La pregunta típica se escribe sola hasta aquí y se corta.
-export const TIPICA_CORTE = 'del 1 al 10, ¿cuánto recomendarías esta oficina a un ami';
+export const TIPICA_CORTE = 'del 1 al 10, ¿cuánto recomendarías tu vida a un ami';
+
+// El «extra» de una pregunta (el «jeje») se ve este tiempo y desaparece.
+export const JEJE_MS = 250;
 
 const SN = [{ label: 'Sí', value: 'si' }, { label: 'No', value: 'no' }];
 const BIEN_MAL = [{ label: 'Bien', value: 'bien' }, { label: 'Mal', value: 'mal' }];
 
 const PREGUNTAS = {
+  solas: { title: '¿pasas mucho tiempo a solas?', extra: ' jeje' },
+  sonreir: { title: '¿te gusta sonreír?' },
   despertar: { title: '¿cómo te has despertado hoy?', opciones: BIEN_MAL },
   estres: { title: '¿sientes estrés estos días?' },
   amigos: { title: '¿tienes amigos?' },
@@ -52,9 +60,9 @@ export function textFor(s) {
   if (step.kind === 'final') {
     const f = FINAL[Math.max(1, Math.min(s.loop, 5)) - 1];
     // Función de reemplazo: así un nombre con «$&» no se interpreta como patrón.
-    return { title: f.title.replace('N', () => s.nombre), sub: f.sub, opciones: SN.map((o) => ({ ...o })) };
+    return { title: f.title.replace('N', () => s.nombre), sub: f.sub, extra: '', opciones: SN.map((o) => ({ ...o })) };
   }
   const p = PREGUNTAS[step.id];
-  if (!p) return { title: '', sub: '', opciones: [] };
-  return { title: p.title, sub: '', opciones: (p.opciones ?? SN).map((o) => ({ ...o })) };
+  if (!p) return { title: '', sub: '', extra: '', opciones: [] };
+  return { title: p.title, sub: '', extra: p.extra ?? '', opciones: (p.opciones ?? SN).map((o) => ({ ...o })) };
 }

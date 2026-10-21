@@ -3,30 +3,35 @@
 
 export const MAX_LOOP = 5;
 export const MAX_NOMBRE = 20;
-export const DESTELLO_MS = 150;
-export const DESTELLO_GAP_MS = 200;
-export const ENTE_MS = 200;
+// Un par de fotogramas: se ve, pero no da tiempo a mirarlo.
+export const ENTE_MS = 70;
+export const RAYADO_MS = 2000;
 
 // nivel: corrupción visual y de la música. thumps/delay: golpes y espera tras responder.
+// destellos: ms visibles y gap de negro entre uno y otro (como mucho 3 por segundo).
+// sinCara: ya no está la carita rosa. mano: sombra de una mano agarrando la tarjeta. golpeteo: golpes constantes.
 export const STEPS = [
   { id: 'inicio', kind: 'inicio', nivel: 0 },
   { id: 'nombre', kind: 'nombre', nivel: 0, thumps: 1, delay: 1000 },
-  { id: 'despertar', kind: 'pregunta', nivel: 0, thumps: 1, delay: 900, opciones: ['bien', 'mal'] },
-  { id: 'estres', kind: 'pregunta', nivel: 1, thumps: 1, delay: 1100 },
-  { id: 'tipica', kind: 'cortada', nivel: 1 },
-  { id: 'corre', kind: 'destellos', nivel: 2, textos: ['CORRE'] },
-  { id: 'amigos', kind: 'pregunta', nivel: 2, thumps: 2, delay: 1600 },
-  { id: 'familia', kind: 'pregunta', nivel: 2, thumps: 2, delay: 1800 },
+  { id: 'solas', kind: 'pregunta', nivel: 0, thumps: 1, delay: 900 },
+  { id: 'sonreir', kind: 'pregunta', nivel: 0, thumps: 1, delay: 900 },
+  { id: 'despertar', kind: 'pregunta', nivel: 1, thumps: 1, delay: 1000, opciones: ['bien', 'mal'] },
+  { id: 'estres', kind: 'pregunta', nivel: 1, thumps: 2, delay: 1200 },
+  { id: 'tipica', kind: 'cortada', nivel: 2 },
+  { id: 'corre', kind: 'destellos', nivel: 2, textos: ['CORRE'], ms: 150, gap: 200 },
+  { id: 'amigos', kind: 'pregunta', nivel: 3, thumps: 2, delay: 1600 },
+  { id: 'familia', kind: 'pregunta', nivel: 3, thumps: 2, delay: 1800 },
+  { id: 'rayado', kind: 'rayado', nivel: 3 },
   { id: 'madre', kind: 'pregunta', nivel: 3, thumps: 2, delay: 2000 },
   { id: 'ente', kind: 'ente', nivel: 3 },
-  { id: 'morir', kind: 'pregunta', nivel: 3, thumps: 3, delay: 2400 },
-  { id: 'buscan', kind: 'destellos', nivel: 4, textos: ['TE BUSCAN'] },
-  { id: 'lugar', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2800, gritos: true },
-  { id: 'aqui', kind: 'destellos', nivel: 4, textos: ['ESTÁ AQUÍ', 'CORRE', 'ESTÁ AQUÍ'] },
-  { id: 'final', kind: 'final', nivel: 4 },
+  { id: 'morir', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2400, sinCara: true },
+  { id: 'buscan', kind: 'destellos', nivel: 4, textos: ['TE BUSCAN'], ms: 70, gap: 200 },
+  { id: 'lugar', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2800, sinCara: true, mano: true, gritos: true },
+  { id: 'aqui', kind: 'destellos', nivel: 5, textos: ['ESTÁ AQUÍ', 'CORRE', 'ESTÁ AQUÍ'], ms: 80, gap: 260 },
+  { id: 'final', kind: 'final', nivel: 4, sinCara: true, golpeteo: true },
 ];
 
-const AUTO = new Set(['cortada', 'destellos', 'ente']);
+const AUTO = new Set(['cortada', 'destellos', 'ente', 'rayado']);
 const NUMERADOS = new Set(['pregunta', 'cortada', 'final']);
 
 export function createSurvey() {

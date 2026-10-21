@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buttonsFor, fleePosition } from '../js/layout.js';
+import { buttonsFor, fleePosition, createFleeBudget } from '../js/layout.js';
 import { createRng } from '../js/glitch.js';
 
 test('buttonsFor sigue la tabla del spec vuelta a vuelta', () => {
-  assert.deepEqual(buttonsFor(1), { si: { size: 'normal' }, no: { scale: 1, mode: 'normal' } });
+  assert.deepEqual(buttonsFor(1), { si: { size: 'normal' }, no: { scale: 1, mode: 'huye' } });
   assert.deepEqual(buttonsFor(2), { si: { size: 'grande' }, no: { scale: 1, mode: 'movido' } });
-  assert.deepEqual(buttonsFor(3), { si: { size: 'mayor' }, no: { scale: 0.7, mode: 'huye' } });
+  assert.deepEqual(buttonsFor(3), { si: { size: 'mayor' }, no: { scale: 0.7, mode: 'chico' } });
   assert.deepEqual(buttonsFor(4), { si: { size: 'media' }, no: { scale: 0.4, mode: 'esquina' } });
   assert.deepEqual(buttonsFor(5), { si: { size: 'completa' }, no: { scale: 0, mode: 'oculto' } });
 });
@@ -29,4 +29,13 @@ test('fleePosition queda en pantalla en 320x568 con el dedo en el centro', () =>
   const vp = { w: 320, h: 568 }, b = { w: 90, h: 44 };
   const p = fleePosition(vp, b, { x: 160, y: 284 }, createRng(9));
   assert.ok(inside(p, vp, b));
+});
+
+test('el No huye 3 veces, separadas, y luego se deja tocar', () => {
+  const b = createFleeBudget(3, 300);
+  assert.equal(b.tryFlee(0), true);
+  assert.equal(b.tryFlee(100), false, 'demasiado pronto');
+  assert.equal(b.tryFlee(320), true);
+  assert.equal(b.tryFlee(700), true);
+  assert.equal(b.tryFlee(1200), false, 'ya huyó 3 veces');
 });
