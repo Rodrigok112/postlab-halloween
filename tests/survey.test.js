@@ -93,10 +93,13 @@ test('questionNumber cuenta las preguntas a partir de la primera', () => {
   assert.equal(questionNumber(at('final')), 11);
 });
 
-test('glitchLevel: limpio en las dos primeras, roto desde la tercera, peor tras la quinta', () => {
+test('glitch: 1–2 limpias, la 3 se rompe y se ordena, la 4 rota constante, luego sube', () => {
   assert.equal(glitchLevel(at('solas')), 0);
   assert.equal(glitchLevel(at('sonreir')), 0);
-  assert.equal(glitchLevel(at('despertar')), 1);
+  assert.equal(glitchLevel(at('despertar')), 0);
+  assert.equal(STEPS.find((x) => x.id === 'despertar').glitchPasajero, true);
+  assert.equal(STEPS.filter((x) => x.glitchPasajero).length, 1);
+  assert.equal(glitchLevel(at('estres')), 1);
   assert.equal(glitchLevel(at('tipica')), 2);
   assert.ok(glitchLevel(at('amigos')) > glitchLevel(at('tipica')));
   assert.ok(glitchLevel(at('amigos')) >= glitchLevel(at('estres')));
@@ -126,17 +129,25 @@ test('la pantalla rayada dura 2 s y el ente tras la madre un par de fotogramas',
   assert.ok(isAuto(STEPS.find((x) => x.id === 'rayado')));
 });
 
-test('la cara rosa desaparece desde «miedo a morir»; la mano solo en «lugar»', () => {
+test('la cara rosa desaparece desde «miedo a morir»; ya no hay mano', () => {
   const st = (id) => STEPS.find((x) => x.id === id);
   for (const id of ['solas', 'amigos', 'madre']) assert.ok(!st(id).sinCara, id);
   for (const id of ['morir', 'lugar', 'final']) assert.equal(st(id).sinCara, true, id);
-  assert.equal(st('lugar').mano, true);
-  assert.equal(STEPS.filter((x) => x.mano).length, 1);
+  assert.equal(STEPS.filter((x) => 'mano' in x).length, 0);
 });
 
-test('golpes desde la primera pregunta; en la final, golpeteo constante sin espera', () => {
-  const solas = STEPS.find((x) => x.id === 'solas');
-  assert.ok(solas.thumps >= 1 && solas.delay > 0);
+test('la pregunta final va sin música', () => {
+  assert.equal(STEPS.find((x) => x.id === 'final').sinMusica, true);
+  assert.equal(STEPS.filter((x) => x.sinMusica).length, 1);
+});
+
+test('sin golpes en las preguntas 1–2, desde la 3; en la final, golpeteo constante sin espera', () => {
+  const st = (id) => STEPS.find((x) => x.id === id);
+  assert.equal(st('nombre').thumps, undefined);
+  assert.equal(st('solas').thumps, undefined);
+  assert.equal(st('sonreir').thumps, undefined);
+  assert.ok(st('solas').delay > 0 && st('sonreir').delay > 0);
+  assert.ok(st('despertar').thumps >= 1);
   const final = STEPS.find((x) => x.id === 'final');
   assert.equal(final.thumps, undefined);
   assert.equal(final.golpeteo, true);

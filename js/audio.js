@@ -96,23 +96,63 @@ export function tapeStop(seconds = 2) {
   }
 }
 
-// Grito degradado. muffled: filtrado como si viniera del otro lado de la puerta.
-export function scream(strength, muffled = true) {
-  if (!ctx) return;
+// Filtro de cada tipo de grito: detrás de la puerta, a medio camino, o encima de ti.
+const FILTROS = { puerta: 650, medio: 2200, abierto: 6000 };
+
+function screamBuf() {
   if (!screamBuffer) {
     const data = screamSamples(ctx.sampleRate, 1.6, createRng(1031));
     screamBuffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
     screamBuffer.copyToChannel(data, 0);
   }
+  return screamBuffer;
+}
+
+// Grito degradado. filtro: 'puerta' (apagado, del otro lado), 'medio' o 'abierto'.
+export function scream(strength, filtro = 'puerta') {
+  if (!ctx) return;
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
-  src.buffer = screamBuffer;
+  src.buffer = screamBuf();
   src.playbackRate.value = 0.8 + Math.random() * 0.35;
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = muffled ? 650 : 5000;
+  filter.frequency.value = FILTROS[filtro] ?? FILTROS.puerta;
   const gain = ctx.createGain();
-  gain.gain.value = Math.max(0, Math.min(strength, 1)) * (muffled ? 0.55 : 0.4);
+  gain.gain.value = Math.max(0, Math.min(strength, 1)) * 0.5;
   src.connect(filter).connect(gain).connect(ctx.destination);
   src.start(t);
+}
+
+// El grito de «QUIERO TU VIDA»: el más fuerte de todos. Tres gritos a la vez (grave, medio y agudo),
+// saturados y sin filtro de puerta, encima de un golpe seco.
+export function screamQTV() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const saturar = ctx.createWaveShaper();
+  const curva = new Float32Array(1024);
+  for (let i = 0; i < curva.length; i++) {
+    const x = (i / (curva.length - 1)) * 2 - 1;
+    curva[i] = Math.tanh(x * 3);
+  }
+  saturar.curve = curva;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 7500;
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.0001, t);
+  master.gain.exponentialRampToValueAtTime(0.9, t + 0.03);
+  master.gain.setValueAtTime(0.9, t + 1.6);
+  master.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
+  saturar.connect(filter).connect(master).connect(ctx.destination);
+  for (const rate of [0.62, 0.86, 1.12]) {
+    const src = ctx.createBufferSource();
+    src.buffer = screamBuf();
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = 0.5;
+    src.connect(g).connect(saturar);
+    src.start(t);
+  }
+  thump(1);
 }

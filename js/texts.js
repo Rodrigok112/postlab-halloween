@@ -2,8 +2,11 @@
 
 import { currentStep } from './survey.js';
 
-// Dice 3 preguntas a propósito: hay 9.
-export const HEADER = { title: 'Encuesta de bienestar', sub: '3 preguntas rápidas. Responde con sinceridad.' };
+// Promete 5 preguntas; a partir de la sexta el contador se pasa («6 de 5»).
+export const TOTAL_PROMETIDO = 5;
+export const HEADER = { title: 'Encuesta de bienestar', sub: `${TOTAL_PROMETIDO} preguntas rápidas. Responde con sinceridad.` };
+
+export const contador = (n) => `pregunta ${n} de ${TOTAL_PROMETIDO}`;
 
 export const INICIO = {
   saludo: 'Hola :)',
@@ -18,7 +21,7 @@ export const NOMBRE = {
   title: '¿cómo te llamas?',
   avisoBorde: 'te recordaré para siempre, así que mejor no pongas un nombre de mierda.',
   aviso: 'te recordaré para siempre, así que no pongas tu usuario de Tuenti.',
-  cambioMs: 1000,
+  cambioMs: 2500,
   placeholder: 'tu nombre',
   boton: 'Continuar',
 };
@@ -29,7 +32,7 @@ export const MUERTE = { title: 'HAS MUERTO', boton: 'otra vez' };
 export const TIPICA_CORTE = 'del 1 al 10, ¿cuánto recomendarías tu vida a un ami';
 
 // El «extra» de una pregunta (el «jeje») se ve este tiempo y desaparece.
-export const JEJE_MS = 250;
+export const JEJE_MS = 2000;
 
 const SN = [{ label: 'Sí', value: 'si' }, { label: 'No', value: 'no' }];
 const BIEN_MAL = [{ label: 'Bien', value: 'bien' }, { label: 'Mal', value: 'mal' }];
@@ -42,7 +45,7 @@ const PREGUNTAS = {
   amigos: { title: '¿tienes amigos?' },
   familia: { title: '¿tienes familia?' },
   madre: { title: '¿recuerdas la cara de tu madre sin mirar una foto?' },
-  morir: { title: '¿tienes miedo a morir?' },
+  morir: { title: '¿tienes miedo a morir?', opciones: [SN[0]] },
   lugar: { title: 'si alguien ocupara tu lugar mañana, ¿lo notarían?' },
 };
 

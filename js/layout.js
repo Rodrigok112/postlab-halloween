@@ -40,5 +40,9 @@ export function createFleeBudget(max = 3, cooldownMs = 300) {
       last = nowMs;
       return true;
     },
+    // Hasta que no ha huido todas las veces, no se deja tocar.
+    agotado() {
+      return count >= max;
+    },
   };
 }

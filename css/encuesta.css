@@ -1,8 +1,8 @@
 /* Encuesta: empieza como una IA amable y se va corrompiendo por niveles (body.nivel-0 a nivel-5). */
 
 @font-face {
-  font-family: "Jacquard 24";
-  src: url("../fonts/Jacquard24-latin.woff2") format("woff2");
+  font-family: "VT323";
+  src: url("../fonts/VT323-latin.woff2") format("woff2");
   font-display: block;
 }
 
@@ -148,6 +148,10 @@ body.bloqueado .btn { cursor: progress; opacity: .6; }
 .no-movido { order: -1; margin-top: 64px; }
 /* Por encima de la tarjeta (z-index 12): el No que se mueve no puede quedar tapado. */
 .no-huye.suelto { position: fixed; z-index: 13; transition: left .12s, top .12s; }
+/* Cada huida se nota: el No da un salto al escaparse. */
+.btn-no.salto { animation: salto .25s ease-out; }
+@keyframes salto { 0% { transform: scale(.6) rotate(-8deg); } 60% { transform: scale(1.15) rotate(4deg); } 100% { transform: scale(var(--escala, 1)); } }
+.contador.pasado { color: #b0123a; }
 .no-esquina { position: fixed; right: 10px; bottom: 10px; z-index: 13; transform-origin: bottom right; }
 .no-oculto { display: none; }
 
@@ -230,15 +234,16 @@ body.nivel-5 .si-media { border-radius: 0; }
 /* El ente: silueta apenas recortada contra el negro. */
 .ente-svg { height: min(86vh, 160vw); width: auto; image-rendering: pixelated; }
 .ente-svg.tenue { position: absolute; opacity: .55; }
-/* Gótica pixelada: PS1 y tenebrosa. */
+/* Pixel de terminal viejo: legible y tenebrosa. */
 .destello {
   position: relative;
   margin: 0;
   padding: 0 12px;
-  font-family: "Jacquard 24", ui-monospace, monospace;
+  font-family: "VT323", ui-monospace, monospace;
   font-weight: 400;
-  font-size: clamp(72px, 26vw, 220px);
-  line-height: .9;
+  font-size: clamp(84px, 30vw, 240px);
+  line-height: .85;
+  letter-spacing: .02em;
   color: #c4121b;
   text-align: center;
   text-shadow: 3px 3px 0 #3a0003;
@@ -246,15 +251,6 @@ body.nivel-5 .si-media { border-radius: 0; }
 
 .rayado { width: 100vw; height: 100vh; height: 100dvh; image-rendering: pixelated; }
 
-/* Sombra de una mano de dedos largos agarrando la tarjeta. */
-.mano-sombra {
-  position: fixed; z-index: 14; width: 150px; height: auto; transform-origin: 50% 0;
-  fill: rgba(20, 10, 10, .32);
-  filter: blur(1.5px);
-  pointer-events: none;
-  animation: agarra 2.8s ease-out both;
-}
-@keyframes agarra { from { transform: translateY(-26px) rotate(-6deg); opacity: 0; } to { transform: translateY(0) rotate(-6deg); opacity: 1; } }
 
 /* ---------- Inicio y nombre ---------- */
 
@@ -318,6 +314,6 @@ body.nivel-5 .si-media { border-radius: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .sacudida { animation: none; }
-  .avatar.saluda, .mano-saludo, .mano-sombra { animation: none; }
+  .avatar.saluda, .mano-saludo, .btn-no.salto { animation: none; }
   .pensando::after { animation: none; width: auto; }
 }

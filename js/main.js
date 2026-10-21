@@ -4,7 +4,7 @@ import {
   createSurvey, currentStep, answer, advance, unlock, glitchLevel, ENTE_MS, RAYADO_MS,
 } from './survey.js';
 import { createRng, createFlashGuard } from './glitch.js';
-import { unlockAudio, thump, scream, tapeStop } from './audio.js';
+import { unlockAudio, thump, scream, screamQTV, tapeStop } from './audio.js';
 import { startMusic, setMusicLevel, stopMusic } from './music.js';
 import {
   renderInicio, renderNombre, renderQuestion, renderCortada, renderDestello, renderEnte, renderRayado,
@@ -94,8 +94,8 @@ function destroyView() {
 
 function gritos(activos) {
   if (activos && !gritoTimer) {
-    later(() => scream(0.6, true), 900);
-    gritoTimer = setInterval(() => scream(0.45 + Math.random() * 0.4, true), GRITO_MS);
+    later(() => scream(0.6, 'puerta'), 900);
+    gritoTimer = setInterval(() => scream(0.45 + Math.random() * 0.4, 'puerta'), GRITO_MS);
   } else if (!activos && gritoTimer) {
     clearInterval(gritoTimer);
     gritoTimer = null;
@@ -104,11 +104,12 @@ function gritos(activos) {
 
 function golpeteo(activo) {
   if (activo && !golpeteoTimer) {
-    scream(0.95, false);
+    scream(0.7, 'medio');
     const tic = () => { thump(0.7 + Math.random() * 0.25); golpeVisible(); };
     tic();
     golpeteoTimer = setInterval(tic, GOLPETEO_MS);
-    golpeteoGritos = setInterval(() => scream(0.8 + Math.random() * 0.2, false), GRITO_FUERTE_MS);
+    // Más bajos que el de «QUIERO TU VIDA», para que ese sea el que destaque.
+    golpeteoGritos = setInterval(() => scream(0.55 + Math.random() * 0.2, 'medio'), GRITO_FUERTE_MS);
   } else if (!activo && golpeteoTimer) {
     clearInterval(golpeteoTimer);
     clearInterval(golpeteoGritos);
@@ -125,6 +126,8 @@ function paint() {
   setMusicLevel(level);
   gritos(CON_GRITOS.has(st.id));
   golpeteo(Boolean(st.golpeteo));
+  // En la pregunta final la música se corta en seco: quedan los golpes y los gritos.
+  if (st.sinMusica) stopMusic();
 
   switch (st.kind) {
     case 'inicio':
@@ -152,7 +155,7 @@ function paint() {
       break;
     default:
       view = renderQuestion(app, state, onAnswer, rng);
-      if (level >= 2) scrambleTimer = setInterval(() => view.scramble(), SCRAMBLE_MS);
+      if (level >= 1) scrambleTimer = setInterval(() => view.scramble(), SCRAMBLE_MS);
   }
 }
 
@@ -185,8 +188,16 @@ function onNombre(value) {
   esperar(currentStep(prev));
 }
 
+// En la final cada No pasa al instante; este margen evita que un toque doble se salte dos vueltas.
+const FINAL_MARGEN_MS = 250;
+let ultimoFinal = -Infinity;
+
 function onAnswer(value) {
   unlockAudio();
+  if (currentStep(state).kind === 'final') {
+    if (performance.now() - ultimoFinal < FINAL_MARGEN_MS) return;
+    ultimoFinal = performance.now();
+  }
   const prev = state;
   const next = answer(state, value);
   if (next === prev) return;
@@ -216,8 +227,7 @@ function finish(camino) {
   golpeteo(false);
   stopMusic();
   setNivel(5);
-  thump(1);
-  scream(1, false);
+  screamQTV();
   renderQuieroTuVida(app);
   later(() => {
     renderBlack(app);

@@ -2,12 +2,12 @@
 // Todo texto del usuario (el nombre) se pinta con textContent, nunca como HTML.
 
 import { buttonsFor, fleePosition, createFleeBudget } from './layout.js';
-import { textFor, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS } from './texts.js';
+import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO } from './texts.js';
 import { corrupt } from './glitch.js';
 import { glitchLevel, questionNumber, currentStep, MAX_NOMBRE } from './survey.js';
 
 const CARAS = ['◕‿◕', '◕‿◕', '◕‿◕', '◕_◕', '•_•', '●_●'];
-const FLEE_RADIUS = 110;
+const FLEE_RADIUS = 130;
 // Huye 3 veces, con un respiro entre huidas para que cada una se note, y luego se deja tocar.
 const MAX_FLEES = 3;
 const FLEE_COOLDOWN_MS = 300;
@@ -119,25 +119,23 @@ export function renderQuestion(root, s, onAnswer, rng) {
   const { ia, titulo } = cabecera(level, rng, paso.sinCara);
   const pregunta = el('h1', 'pregunta');
   const sub = el('p', 'sub');
-  tarjeta.append(ia, el('p', 'contador', `pregunta ${questionNumber(s)} de 3`), pregunta, sub, el('p', 'pensando', 'anotado'));
-  const mano = paso.mano ? manoSombra() : null;
+  const cuenta = contadorEl(questionNumber(s), rng);
+  tarjeta.append(ia, cuenta.el, pregunta, sub, el('p', 'pensando', 'anotado'));
 
   const fila = el('div', 'botones');
   const si = el('button', `btn btn-si si-${botones.si.size}`, opA.label);
-  const no = el('button', `btn btn-no no-${botones.no.mode}`, opB.label);
-  si.type = no.type = 'button';
-  no.style.setProperty('--escala', String(botones.no.scale));
+  si.type = 'button';
   si.addEventListener('click', () => onAnswer(opA.value));
-  no.addEventListener('click', () => onAnswer(opB.value));
-  fila.append(si, no);
-  root.append(tarjeta, fila);
-  if (mano) {
-    // Fuera de la tarjeta (su filtro de pixelado borraría los dedos), anclada a su esquina superior derecha.
-    root.append(mano);
-    const r = tarjeta.getBoundingClientRect();
-    mano.style.top = `${r.top - 52}px`;
-    mano.style.left = `${r.right - 170}px`;
+  fila.append(si);
+  // Hay preguntas con una sola respuesta posible («¿tienes miedo a morir?»): solo «Sí».
+  const no = opB ? el('button', `btn btn-no no-${botones.no.mode}`, opB.label) : null;
+  if (no) {
+    no.type = 'button';
+    no.style.setProperty('--escala', String(botones.no.scale));
+    if (botones.no.mode !== 'huye') no.addEventListener('click', () => onAnswer(opB.value));
+    fila.append(no);
   }
+  root.append(tarjeta, fila);
 
   document.body.classList.toggle('si-tapa', botones.si.size === 'media' || botones.si.size === 'completa');
   document.body.classList.toggle('si-completa-activo', botones.si.size === 'completa');
@@ -154,17 +152,33 @@ export function renderQuestion(root, s, onAnswer, rng) {
     pregunta.textContent = corromper(texto.title, rotura) + extra;
     sub.textContent = corrupt(texto.sub, rotura, rng);
   };
+  const cleanups = [cuenta.destroy];
+  if (paso.glitchPasajero) {
+    // Unas letras se rompen un instante y vuelven a su sitio, como si no hubiera pasado nada.
+    const limpio = () => { pregunta.textContent = texto.title + extra; };
+    const roto = () => { pregunta.textContent = corromper(texto.title, 2) + extra; };
+    const ts = [setTimeout(roto, 700), setTimeout(limpio, 820), setTimeout(roto, 900), setTimeout(limpio, 1080)];
+    cleanups.push(() => ts.forEach(clearTimeout));
+  }
   scramble();
 
-  const cleanups = [];
   if (extra) {
     const t = setTimeout(() => { extra = ''; scramble(); }, JEJE_MS);
     cleanups.push(() => clearTimeout(t));
   }
-  if (botones.no.mode === 'huye') {
+  if (no && botones.no.mode === 'huye') {
     // Empieza en su sitio; en la primera huida se suelta y pasa a moverse por toda la pantalla.
-    const place = (p) => { no.classList.add('suelto'); no.style.left = `${p.x}px`; no.style.top = `${p.y}px`; };
+    // No se deja tocar hasta haber huido MAX_FLEES veces, aunque el toque llegue en el respiro entre huidas.
     const budget = createFleeBudget(MAX_FLEES, FLEE_COOLDOWN_MS);
+    const place = (p) => {
+      no.classList.add('suelto');
+      no.classList.remove('salto');
+      void no.offsetWidth;
+      no.classList.add('salto');
+      no.style.left = `${p.x}px`;
+      no.style.top = `${p.y}px`;
+    };
+    no.addEventListener('click', () => { if (budget.agotado()) onAnswer(opB.value); });
     const flee = (ev) => {
       const r = no.getBoundingClientRect();
       const d = Math.hypot(r.left + r.width / 2 - ev.clientX, r.top + r.height / 2 - ev.clientY);
@@ -191,6 +205,20 @@ export function renderQuestion(root, s, onAnswer, rng) {
   };
 }
 
+// Contador «pregunta N de 5». A partir de la sexta se glitchea al aparecer y se queda pasado de la cuenta.
+function contadorEl(n, rng) {
+  const texto = contador(n);
+  const node = el('p', 'contador', texto);
+  if (n <= TOTAL_PROMETIDO) return { el: node, destroy() {} };
+  node.classList.add('pasado');
+  node.textContent = corrupt(texto, 4, rng);
+  const ts = [
+    setTimeout(() => { node.textContent = corrupt(texto, 2, rng); }, 140),
+    setTimeout(() => { node.textContent = texto; }, 320),
+  ];
+  return { el: node, destroy() { ts.forEach(clearTimeout); } };
+}
+
 // La pregunta típica se escribe sola, se corta con un glitch y llama a onDone.
 export function renderCortada(root, s, rng, onDone) {
   root.replaceChildren();
@@ -200,7 +228,7 @@ export function renderCortada(root, s, rng, onDone) {
   const pregunta = el('h1', 'pregunta');
   const escala = el('div', 'escala');
   for (let i = 1; i <= 10; i++) escala.append(el('span', '', String(i)));
-  tarjeta.append(ia, el('p', 'contador', `pregunta ${questionNumber(s)} de 3`), pregunta, escala);
+  tarjeta.append(ia, el('p', 'contador', contador(questionNumber(s))), pregunta, escala);
   root.append(tarjeta);
 
   const timers = [];
@@ -251,26 +279,6 @@ function enteSvg() {
   if (enteImagen.complete) dibujar();
   else enteImagen.addEventListener('load', dibujar, { once: true });
   return canvas;
-}
-
-// Sombra de una mano de dedos larguísimos que agarra la tarjeta desde arriba.
-function manoSombra() {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 150 250');
-  svg.setAttribute('class', 'mano-sombra');
-  svg.setAttribute('aria-hidden', 'true');
-  // Cada dedo: tres falanges (nudillos marcados) que se afinan hacia la punta.
-  // La palma queda fuera, por encima de la tarjeta: solo asoman los dedos, que se doblan sobre el borde.
-  const dedos = [
-    [[46, 0], [34, 44], [20, 104], [12, 160], [20, 190]],
-    [[64, 0], [58, 50], [50, 124], [46, 196], [56, 234]],
-    [[84, 0], [90, 50], [98, 120], [104, 188], [96, 224]],
-    [[102, 0], [116, 44], [130, 96], [138, 140], [130, 166]],
-  ];
-  const tramo = (a, b, grosor) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke-width="${grosor}"/>`;
-  const lineas = dedos.map((d) => d.slice(1).map((p, i) => tramo(d[i], p, 10 - i * 1.9)).join('')).join('');
-  svg.innerHTML = `<g opacity=".3" stroke="#140a0a" stroke-linecap="round">${lineas}</g>`;
-  return svg;
 }
 
 // Página «rayada»: el ente detrás y la imagen rompiéndose como una señal digital dañada.

@@ -39,3 +39,14 @@ test('el No huye 3 veces, separadas, y luego se deja tocar', () => {
   assert.equal(b.tryFlee(700), true);
   assert.equal(b.tryFlee(1200), false, 'ya huyó 3 veces');
 });
+
+test('el No no se puede tocar hasta que haya huido 3 veces', () => {
+  const b = createFleeBudget(3, 300);
+  assert.equal(b.agotado(), false);
+  b.tryFlee(0);
+  b.tryFlee(100);
+  assert.equal(b.agotado(), false, 'una huida bloqueada por el respiro no cuenta');
+  b.tryFlee(400);
+  b.tryFlee(800);
+  assert.equal(b.agotado(), true);
+});

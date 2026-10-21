@@ -9,13 +9,14 @@ export const RAYADO_MS = 2000;
 
 // nivel: corrupción visual y de la música. thumps/delay: golpes y espera tras responder.
 // destellos: ms visibles y gap de negro entre uno y otro (como mucho 3 por segundo).
-// sinCara: ya no está la carita rosa. mano: sombra de una mano agarrando la tarjeta. golpeteo: golpes constantes.
+// glitchPasajero: unas letras se rompen y se ordenan. sinCara: ya no está la carita rosa.
+// golpeteo: golpes constantes. sinMusica: la música se corta en seco.
 export const STEPS = [
   { id: 'inicio', kind: 'inicio', nivel: 0 },
-  { id: 'nombre', kind: 'nombre', nivel: 0, thumps: 1, delay: 1000 },
-  { id: 'solas', kind: 'pregunta', nivel: 0, thumps: 1, delay: 900 },
-  { id: 'sonreir', kind: 'pregunta', nivel: 0, thumps: 1, delay: 900 },
-  { id: 'despertar', kind: 'pregunta', nivel: 1, thumps: 1, delay: 1000, opciones: ['bien', 'mal'] },
+  { id: 'nombre', kind: 'nombre', nivel: 0, delay: 1000 },
+  { id: 'solas', kind: 'pregunta', nivel: 0, delay: 900 },
+  { id: 'sonreir', kind: 'pregunta', nivel: 0, delay: 900 },
+  { id: 'despertar', kind: 'pregunta', nivel: 0, thumps: 1, delay: 1000, glitchPasajero: true },
   { id: 'estres', kind: 'pregunta', nivel: 1, thumps: 2, delay: 1200 },
   { id: 'tipica', kind: 'cortada', nivel: 2 },
   { id: 'corre', kind: 'destellos', nivel: 2, textos: ['CORRE'], ms: 150, gap: 200 },
@@ -26,9 +27,9 @@ export const STEPS = [
   { id: 'ente', kind: 'ente', nivel: 3 },
   { id: 'morir', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2400, sinCara: true },
   { id: 'buscan', kind: 'destellos', nivel: 4, textos: ['TE BUSCAN'], ms: 70, gap: 200 },
-  { id: 'lugar', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2800, sinCara: true, mano: true, gritos: true },
+  { id: 'lugar', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2800, sinCara: true, gritos: true },
   { id: 'aqui', kind: 'destellos', nivel: 5, textos: ['ESTÁ AQUÍ', 'CORRE', 'ESTÁ AQUÍ'], ms: 80, gap: 260 },
-  { id: 'final', kind: 'final', nivel: 4, sinCara: true, golpeteo: true },
+  { id: 'final', kind: 'final', nivel: 4, sinCara: true, golpeteo: true, sinMusica: true },
 ];
 
 const AUTO = new Set(['cortada', 'destellos', 'ente', 'rayado']);

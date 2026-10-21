@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { textFor, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS } from '../js/texts.js';
+import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO } from '../js/texts.js';
 import { STEPS } from '../js/survey.js';
 
 const at = (id, loop = 1) => ({ index: STEPS.findIndex((x) => x.id === id), loop, locked: false, ended: null, nombre: 'Lucía' });
 const SN = [{ label: 'Sí', value: 'si' }, { label: 'No', value: 'no' }];
 
 test('pantallas fijas', () => {
-  assert.deepEqual(HEADER, { title: 'Encuesta de bienestar', sub: '3 preguntas rápidas. Responde con sinceridad.' });
+  assert.deepEqual(HEADER, { title: 'Encuesta de bienestar', sub: '5 preguntas rápidas. Responde con sinceridad.' });
+  assert.equal(TOTAL_PROMETIDO, 5);
   assert.deepEqual(INICIO, {
     saludo: 'Hola :)',
     title: 'Soy tu asistente de bienestar permanente.',
@@ -19,13 +20,13 @@ test('pantallas fijas', () => {
     title: '¿cómo te llamas?',
     avisoBorde: 'te recordaré para siempre, así que mejor no pongas un nombre de mierda.',
     aviso: 'te recordaré para siempre, así que no pongas tu usuario de Tuenti.',
-    cambioMs: 1000,
+    cambioMs: 2500,
     placeholder: 'tu nombre',
     boton: 'Continuar',
   });
   assert.deepEqual(MUERTE, { title: 'HAS MUERTO', boton: 'otra vez' });
   assert.equal(TIPICA_CORTE, 'del 1 al 10, ¿cuánto recomendarías tu vida a un ami');
-  assert.equal(JEJE_MS, 250);
+  assert.equal(JEJE_MS, 2000);
 });
 
 test('preguntas de bienestar y del medio', () => {
@@ -39,7 +40,7 @@ test('preguntas de bienestar y del medio', () => {
   assert.deepEqual(textFor(at('amigos')), { title: '¿tienes amigos?', sub: '', extra: '', opciones: SN });
   assert.deepEqual(textFor(at('familia')), { title: '¿tienes familia?', sub: '', extra: '', opciones: SN });
   assert.deepEqual(textFor(at('madre')), { title: '¿recuerdas la cara de tu madre sin mirar una foto?', sub: '', extra: '', opciones: SN });
-  assert.deepEqual(textFor(at('morir')), { title: '¿tienes miedo a morir?', sub: '', extra: '', opciones: SN });
+  assert.deepEqual(textFor(at('morir')), { title: '¿tienes miedo a morir?', sub: '', extra: '', opciones: [SN[0]] });
   assert.deepEqual(textFor(at('lugar')), { title: 'si alguien ocupara tu lugar mañana, ¿lo notarían?', sub: '', extra: '', opciones: SN });
 });
 
@@ -62,4 +63,11 @@ test('todos los pasos con respuesta tienen texto', () => {
   for (const st of STEPS.filter((x) => x.kind === 'pregunta' || x.kind === 'final')) {
     assert.ok(textFor(at(st.id)).title.length > 0, st.id);
   }
+});
+
+test('contador: «pregunta N de 5», y se pasa de 5 a partir de la sexta', () => {
+  assert.equal(contador(1), 'pregunta 1 de 5');
+  assert.equal(contador(5), 'pregunta 5 de 5');
+  assert.equal(contador(6), 'pregunta 6 de 5');
+  assert.equal(contador(11), 'pregunta 11 de 5');
 });
