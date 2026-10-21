@@ -8,6 +8,8 @@ import { glitchLevel } from './survey.js';
 const CARAS = ['◕‿◕', '◕‿◕', '◕‿◕', '◕_◕', '•_•', '●_●'];
 const NUMERO = { q1: 1, q2: 2, q3: 3, q4: 4 };
 const FLEE_RADIUS = 120;
+// Huye unas veces y luego se deja tocar: si no, en móvil las vueltas 4 y 5 serían inalcanzables.
+const MAX_FLEES = 3;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -61,10 +63,13 @@ export function renderQuestion(root, s, onAnswer, rng) {
     const place = (p) => { no.style.left = `${p.x}px`; no.style.top = `${p.y}px`; };
     const rect = no.getBoundingClientRect();
     place({ x: (window.innerWidth - rect.width) / 2, y: window.innerHeight * 0.78 });
+    let flees = 0;
     const flee = (ev) => {
+      if (flees >= MAX_FLEES) return;
       const r = no.getBoundingClientRect();
       const d = Math.hypot(r.left + r.width / 2 - ev.clientX, r.top + r.height / 2 - ev.clientY);
       if (d >= FLEE_RADIUS) return;
+      flees++;
       place(fleePosition(
         { w: window.innerWidth, h: window.innerHeight },
         { w: r.width, h: r.height },
