@@ -7,8 +7,8 @@ import { crearHabitacion } from './habitacion.js';
 import { crearEnte, crearMano } from './ente.js';
 import { crearArana } from './arana.js';
 import { crearPasillos } from './pasillo.js';
-import { CAMARA, ENTE, ACCIONES, DURACION, MANO } from './escenas.js';
-import { muestrear } from './linea.js';
+import { CAMARA, ENTE, ACCIONES, DURACION, MANO, ZOOM, ENTRADA_GLITCH_S } from './escenas.js';
+import { muestrear, valorEn } from './linea.js';
 import { CRUCE } from './recorrido.js';
 import { createCarrera, tap, update, distancia, VENTAJA_M } from './carrera.js';
 import { crearAcecho, actualizarAcecho, ACECHO } from './acecho.js';
@@ -152,14 +152,13 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // Posición de los ojos (para su brillo rojo en el boquete).
   const posOjos = () => ente.ojos[0].getWorldPosition(new THREE.Vector3());
 
-  let revientaEn = null;
   let abreEn = null;
+  let ultimoCuadro = performance.now();
   const ejecutar = (a) => {
     switch (a.que) {
       case 'pantalla': hab.setPantalla(a.valor); break;
       case 'boquete': astillazo(); hab.romper(); parpadeo(160); sacudir(1, 350); break;
       case 'mano': mano.grupo.visible = true; break;
-      case 'manoFuera': manoFueraEn = a.t; break;
       case 'ojos':
         ente.grupo.visible = true;
         ente.oscuro(true);
@@ -174,7 +173,19 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       case 'parpadeo': ente.parpadear(0); later(() => ente.parpadear(1), 130); break;
       case 'dialogo': hablar(ahiEstas(nombre)); break;
       case 'callar': callar(); break;
-      case 'revienta': asomado = false; mano.grupo.visible = false; ente.oscuro(false); portazo(); parpadeo(180); sacudir(1.2, 400); revientaEn = performance.now(); hab.luzOjos(null); break;
+      case 'explota':
+        asomado = false;
+        entraHasta = a.t + ENTRADA_GLITCH_S;
+        mano.grupo.visible = false;
+        ente.oscuro(false);
+        hab.estallar();
+        portazo();
+        astillazo();
+        parpadeo(220);
+        sacudir(1.6, 600);
+        hab.luzOjos(null);
+        coro?.setCercania(0.6);
+        break;
       case 'boca': ente.boca(1); ente.alcanzar(1); break;
       case 'grito': screamQTV(); sacudir(1.5, 900); coro?.setCercania(1); break;
       case 'abrePuerta': abreEn = performance.now(); break;
@@ -190,6 +201,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // fotograma roto, que también rompe la pantalla (glitch del paso final).
   let ultimoTic = -1;
   let asomado = false;
+  let entraHasta = null; // hasta cuándo (s de la cinemática) dura la entrada con mucho glitch
   let congelado = 0;
   const ticEnte = (t) => {
     const tic = Math.floor(t * FPS_MONSTRUO);
@@ -197,8 +209,9 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     ultimoTic = tic;
     if (congelado > 0) { congelado--; return false; }
     if (rng() < 0.05) congelado = 2 + Math.floor(rng() * 2);
-    // Asomado tras la puerta, sin glitch ni giros de cabeza: que se lean bien los dos ojos.
-    motor.glitch(ente.grupo.visible && ente.tic(rng, !asomado) ? 1 : 0);
+    // Asomado tras la puerta, sin glitch ni giros de cabeza (que se lean bien los dos ojos); al entrar, mucho.
+    const nivel = asomado ? 0 : entraHasta !== null && t < entraHasta ? 2 : 1;
+    motor.glitch(ente.grupo.visible && ente.tic(rng, nivel) ? 1 : 0);
     return true;
   };
 
@@ -216,14 +229,11 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     ente.andar(anda ? t * 6 : 0);
   };
 
-  // La mano: entra despacio por el boquete y se agarra al borde; con manoFuera se retira deprisa.
-  let manoFueraEn = null;
+  // La mano: entra despacio por el boquete y se agarra al borde.
   const posarMano = (t) => {
     const u = Math.min(1, Math.max(0, (t - MANO.entraDesde) / (MANO.entraHasta - MANO.entraDesde)));
     const k = u * u * (3 - 2 * u);
-    let x = MANO.fuera + (MANO.dentro - MANO.fuera) * k;
-    if (manoFueraEn !== null) x += (MANO.fuera - MANO.dentro) * Math.min(1, (t - manoFueraEn) / 0.4);
-    mano.grupo.position.set(x, MANO_Y, MANO_Z);
+    mano.grupo.position.set(MANO.fuera + (MANO.dentro - MANO.fuera) * k, MANO_Y, MANO_Z);
     mano.agarrar(u > 0.8 ? (u - 0.8) / 0.2 : 0);
   };
 
@@ -231,10 +241,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     // window.__tFijo (solo para depurar) congela la cinemática en ese segundo.
     const t = window.__tFijo ?? (ahora - t0) / 1000;
     for (const a of acciones) if (!a.hecho && t >= a.t) { a.hecho = true; ejecutar(a); }
-    if (revientaEn !== null) {
-      const u = Math.min(1, (ahora - revientaEn) / 160);
-      hab.puertaRota.rotation.y = -1.75 * u;
-    }
+    hab.actualizarTrozos(Math.min(0.05, (ahora - ultimoCuadro) / 1000));
+    ultimoCuadro = ahora;
     if (abreEn !== null) {
       const u = Math.min(1, (ahora - abreEn) / 300);
       hab.puertaIzquierda.rotation.y = 0.35 + 1.15 * u;
@@ -244,6 +252,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (mano.grupo.visible) posarMano(paso12(t));
     }
     const c = muestrear(CAMARA[camino], t);
+    const fov = valorEn(ZOOM, t);
+    if (camara.fov !== fov) { camara.fov = fov; camara.updateProjectionMatrix(); }
     camara.position.set(...c.pos);
     camara.lookAt(mira.set(...c.mira));
     aplicarSacudida(ahora);
@@ -303,6 +313,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // En el cruce: dos botones y 4 s para elegir. Si no eliges, el ente te atrapa.
   function elegir() {
     motor.glitch(0);
+    if (camara.fov !== 68) { camara.fov = 68; camara.updateProjectionMatrix(); }
     mano.grupo.visible = false;
     ente.grupo.visible = false;
     ente.oscuro(false);

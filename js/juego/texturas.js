@@ -572,8 +572,21 @@ export function mascara(rng) {
   g.fillStyle = '#b8988a';
   g.fillRect(0, 0, 64, 64);
   foto(g, 'yeso', 0, 0, 64, 64, { modo: 'multiply', alfa: 0.35, escala: 0.5 });
-  g.fillStyle = 'rgba(70,40,40,.35)';
-  g.fillRect(28, 26, 8, 14); // sombra de la nariz
+  // Sombras de pómulos, cejas y nariz, como piel estirada sobre algo que no es una cara.
+  g.fillStyle = 'rgba(70,40,40,.3)';
+  g.fillRect(10, 32, 12, 6);
+  g.fillRect(42, 32, 12, 6);
+  g.fillRect(12, 15, 16, 3);
+  g.fillRect(36, 15, 16, 3);
+  g.fillStyle = 'rgba(70,40,40,.4)';
+  g.fillRect(28, 26, 8, 12); // sombra de la nariz
+  g.fillStyle = '#2a1210';
+  g.fillRect(28, 37, 2, 2); // orificios
+  g.fillRect(34, 37, 2, 2);
+  // Costura en la frente.
+  g.fillStyle = '#3a2420';
+  g.fillRect(14, 8, 36, 1);
+  for (let x = 15; x < 50; x += 4) g.fillRect(x, 6, 1, 5);
   g.fillStyle = '#120606';
   g.beginPath(); g.ellipse(20, 24, 7, 5, 0.15, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.ellipse(44, 24, 7, 5, -0.15, 0, Math.PI * 2); g.fill();

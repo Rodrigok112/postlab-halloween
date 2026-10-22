@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { muestrear } from '../js/juego/linea.js';
+import { muestrear, valorEn } from '../js/juego/linea.js';
 
 const CLAVES = [
   { t: 0, pos: [0, 1, 0], mira: [0, 1, -1] },
@@ -29,4 +29,13 @@ test('dos claves con el mismo tiempo no dividen por cero (corte de cámara)', ()
   const m = muestrear(corte, 1);
   assert.ok(m.pos.every(Number.isFinite));
   assert.deepEqual(muestrear(corte, 1.01).pos, [5, 0, 0]);
+});
+
+test('valorEn: un número interpolado entre claves { t, v }, con corte seco si dos claves comparten t', () => {
+  const zoom = [{ t: 0, v: 68 }, { t: 2, v: 40 }, { t: 2, v: 60 }];
+  assert.equal(valorEn(zoom, -1), 68);
+  assert.equal(valorEn(zoom, 1), 54);
+  assert.equal(valorEn(zoom, 1.99) < 41, true);
+  assert.equal(valorEn(zoom, 2), 60);
+  assert.equal(valorEn(zoom, 9), 60);
 });

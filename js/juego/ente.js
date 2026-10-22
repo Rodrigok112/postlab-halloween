@@ -154,28 +154,50 @@ export function crearEnte() {
   cabeza.rotation.x = -0.35;
   cuello.add(cabeza);
   const giro = new THREE.Group(); // los giros de 90° de la cabeza, aparte de la inclinación
+  giro.scale.setScalar(1.35); // cabeza grande, que se vea bien desde la silla
   cabeza.add(giro);
   const craneo = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), metal);
   craneo.scale.set(1, 1.3, 1);
   craneo.position.y = 0.07;
   giro.add(craneo);
-  const mascara = new THREE.Mesh(new THREE.CylinderGeometry(0.126, 0.118, 0.23, 8, 2, true, -0.9, 1.8), cara);
-  mascara.position.y = 0.085;
+  // Cara: un trozo de esfera algo mayor que el cráneo, por delante, con la máscara de piel.
+  const mascara = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 9, Math.PI / 2 - 1.0, 2.0, 0.35, 1.85), cara);
+  mascara.scale.set(1, 1.3, 1);
+  mascara.position.y = 0.07;
   giro.add(mascara);
-  // Ojos: dos LED en las cuencas de la máscara, y una rejilla de LED pequeños en la frente.
+  // Pómulos y arco de las cejas marcados por debajo de la piel.
+  for (const s of [-1, 1]) {
+    const pomulo = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 4), cara);
+    pomulo.scale.set(1.3, 0.7, 0.6);
+    pomulo.position.set(s * 0.045, 0.1, 0.112);
+    giro.add(pomulo);
+  }
+  // Ojos: dos LED en las cuencas de la máscara, y una corona de LED pequeños encima del cráneo.
   const ojos = [];
   for (const s of [-1, 1]) {
-    const o = new THREE.Mesh(new THREE.SphereGeometry(0.016, 5, 4), ojo);
-    o.position.set(s * 0.042, 0.114, 0.112);
+    const o = new THREE.Mesh(new THREE.SphereGeometry(0.017, 5, 4), ojo);
+    o.position.set(s * 0.042, 0.155, 0.1);
     giro.add(o);
     ojos.push(o);
   }
   const leds = [];
   for (let i = 0; i < 6; i++) {
     const l = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.012), ojo);
-    l.position.set(((i % 3) - 1) * 0.03, 0.225 + Math.floor(i / 3) * 0.025, 0.085 - Math.floor(i / 3) * 0.02);
+    l.position.set(((i % 3) - 1) * 0.03, 0.245 + Math.floor(i / 3) * 0.015, 0.03 - Math.floor(i / 3) * 0.035);
     giro.add(l);
     leds.push(l);
+  }
+  // Pelo humano, largo y apelmazado, colgando de la parte de atrás del cráneo.
+  const pelos = [];
+  for (let i = 0; i < 16; i++) {
+    const a = -1.4 + (i / 15) * 2.8 + Math.PI;
+    const largo = 0.2 + rng() * 0.25;
+    const g = new THREE.Group();
+    g.position.set(Math.sin(a) * 0.1, 0.2, Math.cos(a) * 0.09);
+    g.rotation.z = Math.sin(a) * 0.3;
+    g.add(barra(largo, 0.004, 0.003, oscuroM, 3));
+    giro.add(g);
+    pelos.push(g);
   }
   // Boca: dientes de arriba bajo la máscara, mandíbula de bisagra y garganta oscura que crece al abrir.
   for (let i = 0; i < 7; i++) {
@@ -268,14 +290,17 @@ export function crearEnte() {
     // Un fotograma de 12 fps: un brazo tiembla siempre, la cabeza gira de golpe 90° a veces y, de vez en
     // cuando, una pose rota de 1–2 fotogramas. Devuelve true en los fotogramas rotos (para el glitch de
     // pantalla).
-    tic(rnd, conGlitch = true) {
+    // nivel: 0 sin glitch (asomado), 1 normal, 2 entrando (muchos fotogramas rotos).
+    tic(rnd, nivel = 1) {
+      const conGlitch = nivel > 0;
+      for (const p of pelos) p.rotation.x = (rnd() - 0.5) * 0.3;
       brazos[1].brazo.rotation.z = 0.12 + (rnd() - 0.5) * 0.12;
       brazos[1].codo2.rotation.z = (rnd() - 0.5) * 0.3;
       cabezaHasta--;
       if (cabezaHasta <= 0) giro.rotation.z = 0;
-      if (conGlitch && rnd() < 0.03) { giro.rotation.z = rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2; cabezaHasta = 6 + Math.floor(rnd() * 14); }
+      if (conGlitch && rnd() < (nivel > 1 ? 0.15 : 0.03)) { giro.rotation.z = rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2; cabezaHasta = 6 + Math.floor(rnd() * 14); }
       if (roto > 0) roto--;
-      else if (conGlitch && rnd() < 0.06) roto = 1 + Math.floor(rnd() * 2);
+      else if (conGlitch && rnd() < (nivel > 1 ? 0.4 : 0.06)) roto = 1 + Math.floor(rnd() * 2);
       if (roto > 0) {
         for (const b of brazos) { b.brazo.rotation.x = (rnd() - 0.5) * 3; b.codo1.rotation.x = (rnd() - 0.5) * 3; }
         arriba.rotation.x = inclinacion + (rnd() - 0.5) * 0.5;

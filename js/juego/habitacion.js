@@ -5,6 +5,7 @@
 
 import { THREE, materialPS1, materialBrillo, luces, hornear } from './ps1.js';
 import * as tex from './texturas.js';
+import { createRng } from '../glitch.js';
 
 const ANCHO = 5;
 const FONDO = 3.3;
@@ -281,10 +282,57 @@ export function crearHabitacion(rng) {
   luces.punto(L_PANTALLA, [0, 1.12, -0.95], 0xff2020, 0.9, 1.9);
   luces.punto(L_PASILLO, [-ANCHO / 2 - 0.8, 2.1, ZP], 0xd8c070, 0.9, 3.2);
 
+  // Trozos de la puerta derecha cuando estalla: salen hacia dentro, giran, caen y se quedan en el suelo.
+  const trozos = [];
+  const estallar = () => {
+    puertaRota.visible = false;
+    puertaDerecha.visible = false;
+    const azar = createRng(4242);
+    for (let i = 0; i < 16; i++) {
+      const alto = 0.15 + azar() * 0.55;
+      const ancho = 0.08 + azar() * 0.22;
+      const geo = new THREE.BoxGeometry(0.05, alto, ancho);
+      // Sus materiales ya tienen sombras horneadas (color de vértice): sin este atributo saldrían negros.
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
+      const m = new THREE.Mesh(geo, i % 5 ? madera : canto);
+      m.position.set(ANCHO / 2 - 0.05, 0.2 + azar() * 1.8, PUERTA.z0 + azar() * (PUERTA.z1 - PUERTA.z0));
+      m.rotation.set(azar() * 3, azar() * 3, azar() * 3);
+      m.userData = {
+        v: new THREE.Vector3(-(2.2 + azar() * 3.5), 0.8 + azar() * 2.8, (azar() - 0.5) * 3),
+        w: new THREE.Vector3((azar() - 0.5) * 14, (azar() - 0.5) * 14, (azar() - 0.5) * 14),
+        suelo: Math.min(alto, ancho) / 2,
+      };
+      grupo.add(m);
+      trozos.push(m);
+    }
+  };
+  const actualizarTrozos = (dt) => {
+    for (const m of trozos) {
+      const d = m.userData;
+      if (!d.v) continue;
+      d.v.y -= 9.8 * dt;
+      m.position.addScaledVector(d.v, dt);
+      m.rotation.x += d.w.x * dt;
+      m.rotation.y += d.w.y * dt;
+      m.rotation.z += d.w.z * dt;
+      // Contra las paredes de la habitación rebota; en el suelo se queda tumbado.
+      if (Math.abs(m.position.z) > FONDO / 2 - 0.1) d.v.z *= -0.4;
+      if (m.position.x < -ANCHO / 2 + 0.1) d.v.x *= -0.4;
+      if (m.position.y <= d.suelo) {
+        m.position.y = d.suelo;
+        m.rotation.x = Math.PI / 2;
+        m.rotation.z = 0;
+        d.v = null;
+      }
+    }
+  };
+
   return {
     grupo,
     puertaDerecha,
     puertaRota,
+    estallar,
+    actualizarTrozos,
     puertaIzquierda,
     // null = pantalla apagada.
     setPantalla(texto) {
