@@ -4,10 +4,10 @@
 
 import { THREE, crearMotor, luces } from './ps1.js';
 import { crearHabitacion } from './habitacion.js';
-import { crearEnte } from './ente.js';
+import { crearEnte, crearMano } from './ente.js';
 import { crearArana } from './arana.js';
 import { crearPasillos } from './pasillo.js';
-import { CAMARA, ENTE, ACCIONES, DURACION } from './escenas.js';
+import { CAMARA, ENTE, ACCIONES, DURACION, MANO } from './escenas.js';
 import { muestrear } from './linea.js';
 import { CRUCE } from './recorrido.js';
 import { createCarrera, tap, update, distancia, VENTAJA_M } from './carrera.js';
@@ -26,6 +26,11 @@ const ELEGIR_S = 4;
 const MIRAR_ATRAS_M = 2.5; // unos 7 toques
 const MIRAR_ATRAS_S = 2.1;
 const LETRA_MS = 75;
+// Los monstruos se mueven a 12 fps (la cámara y el resto, a los fps del móvil).
+const FPS_MONSTRUO = 12;
+const paso12 = (t) => Math.floor(t * FPS_MONSTRUO) / FPS_MONSTRUO;
+// Boquete de la puerta derecha (habitación de 5 m): la mano entra por aquí, un poco por debajo del centro.
+const MANO_Y = 1.43, MANO_Z = 0.35;
 // Hacia dónde mira la cámara en el cruce (−x, de frente a la pared) y el rumbo de cada camino.
 const RUMBO_CRUCE = Math.PI / 2;
 // Huecos de luz durante la carrera.
@@ -126,10 +131,15 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   const hab = crearHabitacion(rng);
   const pasillos = crearPasillos(rng);
   const ente = crearEnte();
-  const arana = crearArana();
-  escena.add(hab.grupo, pasillos.grupo, ente.grupo, arana.grupo);
+  // Araña A (agujas) o B (brazos): al azar en cada partida; ?arana=a o ?arana=b la fija.
+  const pedida = new URLSearchParams(window.location.search).get('arana');
+  const arana = crearArana(pedida === 'a' || pedida === 'b' ? pedida : rng() < 0.5 ? 'a' : 'b');
+  const mano = crearMano();
+  escena.add(hab.grupo, pasillos.grupo, ente.grupo, arana.grupo, mano.grupo);
   ente.grupo.visible = false;
   arana.grupo.visible = false;
+  mano.grupo.visible = false;
+  mano.grupo.rotation.y = -Math.PI / 2; // apunta hacia dentro de la habitación (−x)
   escena.fog.color.set(0x000000);
   escena.fog.near = 3;
   escena.fog.far = 14;
@@ -148,9 +158,12 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     switch (a.que) {
       case 'pantalla': hab.setPantalla(a.valor); break;
       case 'boquete': astillazo(); hab.romper(); parpadeo(160); sacudir(1, 350); break;
+      case 'mano': mano.grupo.visible = true; break;
+      case 'manoFuera': manoFueraEn = a.t; break;
       case 'ojos':
         ente.grupo.visible = true;
         ente.oscuro(true);
+        asomado = true;
         ente.parpadear(1);
         ente.grupo.updateMatrixWorld(true);
         hab.luzOjos(posOjos());
@@ -161,7 +174,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       case 'parpadeo': ente.parpadear(0); later(() => ente.parpadear(1), 130); break;
       case 'dialogo': hablar(ahiEstas(nombre)); break;
       case 'callar': callar(); break;
-      case 'revienta': ente.oscuro(false); portazo(); parpadeo(180); sacudir(1.2, 400); revientaEn = performance.now(); hab.luzOjos(null); break;
+      case 'revienta': asomado = false; mano.grupo.visible = false; ente.oscuro(false); portazo(); parpadeo(180); sacudir(1.2, 400); revientaEn = performance.now(); hab.luzOjos(null); break;
       case 'boca': ente.boca(1); ente.alcanzar(1); break;
       case 'grito': screamQTV(); sacudir(1.5, 900); coro?.setCercania(1); break;
       case 'abrePuerta': abreEn = performance.now(); break;
@@ -172,6 +185,22 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
   const acciones = (ACCIONES[camino] ?? []).map((a) => ({ ...a, hecho: false }));
   const t0 = performance.now();
+
+  // Reloj de 12 fps del ente: en cada fotograma nuevo decide si se congela (2–3 fotogramas) y si toca un
+  // fotograma roto, que también rompe la pantalla (glitch del paso final).
+  let ultimoTic = -1;
+  let asomado = false;
+  let congelado = 0;
+  const ticEnte = (t) => {
+    const tic = Math.floor(t * FPS_MONSTRUO);
+    if (tic === ultimoTic) return false;
+    ultimoTic = tic;
+    if (congelado > 0) { congelado--; return false; }
+    if (rng() < 0.05) congelado = 2 + Math.floor(rng() * 2);
+    // Asomado tras la puerta, sin glitch ni giros de cabeza: que se lean bien los dos ojos.
+    motor.glitch(ente.grupo.visible && ente.tic(rng, !asomado) ? 1 : 0);
+    return true;
+  };
 
   // Coloca al ente según sus claves en el tiempo t.
   const posarEnte = (claves, t) => {
@@ -187,6 +216,17 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     ente.andar(anda ? t * 6 : 0);
   };
 
+  // La mano: entra despacio por el boquete y se agarra al borde; con manoFuera se retira deprisa.
+  let manoFueraEn = null;
+  const posarMano = (t) => {
+    const u = Math.min(1, Math.max(0, (t - MANO.entraDesde) / (MANO.entraHasta - MANO.entraDesde)));
+    const k = u * u * (3 - 2 * u);
+    let x = MANO.fuera + (MANO.dentro - MANO.fuera) * k;
+    if (manoFueraEn !== null) x += (MANO.fuera - MANO.dentro) * Math.min(1, (t - manoFueraEn) / 0.4);
+    mano.grupo.position.set(x, MANO_Y, MANO_Z);
+    mano.agarrar(u > 0.8 ? (u - 0.8) / 0.2 : 0);
+  };
+
   const pintarHabitacion = (ahora) => {
     // window.__tFijo (solo para depurar) congela la cinemática en ese segundo.
     const t = window.__tFijo ?? (ahora - t0) / 1000;
@@ -199,7 +239,10 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const u = Math.min(1, (ahora - abreEn) / 300);
       hab.puertaIzquierda.rotation.y = 0.35 + 1.15 * u;
     }
-    posarEnte(ENTE[camino], t);
+    if (ticEnte(t)) {
+      posarEnte(ENTE[camino], paso12(t));
+      if (mano.grupo.visible) posarMano(paso12(t));
+    }
     const c = muestrear(CAMARA[camino], t);
     camara.position.set(...c.pos);
     camara.lookAt(mira.set(...c.mira));
@@ -259,6 +302,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
   // En el cruce: dos botones y 4 s para elegir. Si no eliges, el ente te atrapa.
   function elegir() {
+    motor.glitch(0);
+    mano.grupo.visible = false;
     ente.grupo.visible = false;
     ente.oscuro(false);
     arana.grupo.visible = false;
@@ -335,6 +380,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     let ultimoParpadeo = 0;
     let balanceo = 0;
     const r0 = rec.segmentos[0].rumbo;
+    let ultimoTicArana = -1;
     capa.replaceChildren(el('p', 'juego-aviso', 'TOCA PARA CORRER'));
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
@@ -375,12 +421,14 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     };
     const vistaAtras = (ahora, p) => {
       const t = (ahora - atrasDesde) / 1000;
+      ticEnte(t + 1000);
       const ida = smooth(Math.min(1, t / 0.3));
       const vuelta = smooth(Math.min(1, Math.max(0, (t - 1.7) / 0.3)));
       const u = ida - vuelta;
       camaraEn(p.x, p.z, p.rumbo + Math.PI * u, 0.12 * u);
       if (t >= MIRAR_ATRAS_S) {
         pausa = false;
+        motor.glitch(0);
         ente.grupo.visible = false;
         ente.boca(0);
         ultimo = ahora;
@@ -419,12 +467,14 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       }
 
       // El segundo monstruo, corriendo por el pasillo que sigue recto.
-      if (acecho.estado === 'corre' || acecho.estado === 'esquivado') {
+      const ticArana = Math.floor((ahora / 1000) * FPS_MONSTRUO);
+      if ((acecho.estado === 'corre' || acecho.estado === 'esquivado') && ticArana !== ultimoTicArana) {
+        ultimoTicArana = ticArana;
         const q = rec.recto(acecho.pos);
         arana.grupo.visible = true;
         arana.grupo.position.set(q.x, 0, q.z);
         arana.grupo.rotation.y = r0;
-        arana.animar(ahora / 1000 * 16, rng);
+        arana.animar(ticArana * 1.6, rng);
         luces.punto(L_ARANA, [q.x, 0.8, q.z], 0xff1010, 0.9, 2.6);
         const hueco = (acecho.esquina - c.jugador) + acecho.pos;
         arrastre?.setCercania(1 - Math.min(1, hueco / ACECHO.distanciaM));
@@ -489,11 +539,13 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const t = (ahora - inicio) / 1000;
       const u = smooth(Math.min(1, t / 0.35));
       camaraEn(x, z, yaw + Math.PI * u, 0.45 * u);
+      ticEnte(t + 2000);
       coro?.setCercania(1);
       if (!grito && t > 0.45) { grito = true; screamQTV(); sacudir(1.5, 900); }
       aplicarSacudida(ahora);
       motor.render();
       if (t < CAPTURA_S) { raf = requestAnimationFrame(giro); return; }
+      motor.glitch(0);
       ente.grupo.visible = false;
       terminarMuerte(toques);
     };
@@ -509,19 +561,20 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     vibrar();
     const salto = (ahora) => {
       if (apagado) return;
-      const t = (ahora - inicio) / 1000;
+      const t = paso12((ahora - inicio) / 1000);
       const u = smooth(Math.min(1, t / 0.25));
       // Acaba con la cabeza (0,85 m por delante de su centro) a 1 m de ti y un poco por debajo.
       const lejos = 3.0 - 1.15 * u;
       arana.grupo.visible = true;
       arana.grupo.position.set(p.x + d.x * lejos, 0.75 * u, p.z + d.y * lejos);
       arana.grupo.rotation.y = p.rumbo;
-      arana.animar(t * 20, rng);
+      motor.glitch(arana.animar(t * 20, rng) ? 1 : 0);
       camaraEn(p.x, p.z, p.rumbo, -0.25 * u);
       if (!grito && t > 0.15) { grito = true; screamQTV(); sacudir(1.5, 900); }
       aplicarSacudida(ahora);
       motor.render();
       if (t < CAPTURA_S) { raf = requestAnimationFrame(salto); return; }
+      motor.glitch(0);
       arana.grupo.visible = false;
       luces.apagar(L_ARANA);
       terminarMuerte(c.toques);
@@ -545,7 +598,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   }
 
   // Para depurar desde la consola cuando se entra por un atajo de prueba.
-  if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, arana, camara, escena, hab, pasillos };
+  if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, arana, mano, camara, escena, hab, pasillos };
 
   // Atajo de prueba #juego-cruce: salta la habitación.
   if (camino === 'cruce') { elegir(); return; }

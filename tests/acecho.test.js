@@ -16,6 +16,11 @@ function simular(vel) {
   return a;
 }
 
+test('es rápida (al menos 6,5 m/s) y sale de lejos, para que se vea venir', () => {
+  assert.ok(ACECHO.vel >= 6.5);
+  assert.ok(ACECHO.distanciaM >= 35);
+});
+
 test('espera escondido hasta que el jugador lleva unos metros', () => {
   const a = actualizarAcecho(crearAcecho(ESQUINA), ACECHO.apareceM - 0.1, 0.1);
   assert.equal(a.estado, 'espera');

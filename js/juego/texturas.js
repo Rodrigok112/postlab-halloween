@@ -542,3 +542,69 @@ export function teclas(rng) {
   ruido(g, 128, 48, rng, 200, '#3d3828', 0.3);
   return textura(c);
 }
+
+// ---------- Monstruos: máquina que intenta parecer humana ----------
+
+// Piel humana estirada sobre la máquina: pálida, con costuras, moratones y sangre que chorrea.
+export function pielHumana(rng) {
+  const [c, g] = lienzo(64, 64);
+  g.fillStyle = '#b39282';
+  g.fillRect(0, 0, 64, 64);
+  foto(g, 'yeso', 0, 0, 64, 64, { modo: 'multiply', alfa: 0.4, escala: 0.5 });
+  for (let i = 0; i < 4; i++) mancha(g, rng() * 64, rng() * 64, 4 + rng() * 5, rng, 'rgba(90,60,80,.35)');
+  // Costuras: una línea oscura con puntadas cruzadas.
+  g.fillStyle = '#3a2420';
+  for (let k = 0; k < 2; k++) {
+    const y = 14 + k * 30 + Math.floor(rng() * 8);
+    g.fillRect(0, y, 64, 1);
+    for (let x = 2; x < 64; x += 5) g.fillRect(x, y - 2, 1, 5);
+  }
+  g.fillStyle = '#6b070c';
+  for (let i = 0; i < 7; i++) g.fillRect(Math.floor(rng() * 64), Math.floor(rng() * 30), 2, 8 + Math.floor(rng() * 26));
+  mancha(g, rng() * 64, rng() * 64, 6, rng, 'rgba(90,6,10,.7)');
+  ruido(g, 64, 64, rng, 300, '#4a2e28', 0.35);
+  return textura(c);
+}
+
+// Cara de piel puesta como una máscara: cuencas vacías, nariz aplastada, boca cosida y sangre de los ojos.
+export function mascara(rng) {
+  const [c, g] = lienzo(64, 64);
+  g.fillStyle = '#b8988a';
+  g.fillRect(0, 0, 64, 64);
+  foto(g, 'yeso', 0, 0, 64, 64, { modo: 'multiply', alfa: 0.35, escala: 0.5 });
+  g.fillStyle = 'rgba(70,40,40,.35)';
+  g.fillRect(28, 26, 8, 14); // sombra de la nariz
+  g.fillStyle = '#120606';
+  g.beginPath(); g.ellipse(20, 24, 7, 5, 0.15, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(44, 24, 7, 5, -0.15, 0, Math.PI * 2); g.fill();
+  // Boca cosida.
+  g.fillStyle = '#3a1414';
+  g.fillRect(18, 46, 28, 2);
+  g.fillStyle = '#20100c';
+  for (let x = 19; x < 46; x += 4) g.fillRect(x, 43, 1, 7);
+  // Lágrimas de sangre y bordes rasgados de la piel.
+  g.fillStyle = '#6b070c';
+  for (const x of [17, 22, 41, 46]) g.fillRect(x, 28, 2, 12 + Math.floor(rng() * 24));
+  g.fillStyle = '#5a0408';
+  for (let x = 0; x < 64; x += 3) g.fillRect(x, 0, 2, 2 + Math.floor(rng() * 5));
+  ruido(g, 64, 64, rng, 200, '#4a2e28', 0.35);
+  const t = textura(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
+// Chapa metálica gris con juntas y remaches, rayada y con óxido.
+export function chapa(rng) {
+  const [c, g] = lienzo(64, 64);
+  g.fillStyle = '#4b4d4f';
+  g.fillRect(0, 0, 64, 64);
+  foto(g, 'metal', 0, 0, 64, 64, { color: '#b9bcbd', modo: 'screen', alfa: 0.45, escala: 0.5 });
+  foto(g, 'hormigon', 0, 0, 64, 64, { modo: 'multiply', alfa: 0.4, escala: 0.5 });
+  g.fillStyle = '#1e1f20';
+  g.fillRect(0, 31, 64, 2);
+  g.fillRect(31, 0, 2, 64);
+  g.fillStyle = '#8c8f91';
+  for (const [x, y] of [[4, 4], [27, 4], [36, 4], [59, 4], [4, 27], [59, 27], [4, 36], [59, 36], [4, 59], [27, 59], [36, 59], [59, 59]]) g.fillRect(x, y, 2, 2);
+  for (let i = 0; i < 3; i++) mancha(g, rng() * 64, rng() * 64, 3 + rng() * 4, rng, 'rgba(110,50,20,.45)');
+  return textura(c);
+}

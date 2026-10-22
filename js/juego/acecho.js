@@ -4,8 +4,8 @@
 
 export const ACECHO = {
   apareceM: 7, // sale cuando el jugador lleva estos metros
-  distanciaM: 20, // empieza a esta distancia de la esquina
-  vel: 3.4, // m/s: con margen, escapas por encima de unos 3,5 toques por segundo
+  distanciaM: 37, // empieza a esta distancia de la esquina (fuera de la niebla: primero se oye)
+  vel: 6.5, // m/s: muy rápida, pero con margen: escapas por encima de unos 3,5 toques por segundo
   atrapaM: 0.8,
   giradoM: 0.3, // pasada la esquina por esto, ya has girado
 };

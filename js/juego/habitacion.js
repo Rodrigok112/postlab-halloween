@@ -1,12 +1,12 @@
-// La oficina del croquis: 4 × 3,3 m, techo de 2,6 m. x a la derecha, y arriba, z hacia la cámara.
-// Pared del fondo en z = -1,65 (escritorio pegado), puerta del ente en x = +2, salida al pasillo en x = -2.
+// La oficina del croquis, algo más ancha: 5 × 3,3 m, techo de 2,6 m. x a la derecha, y arriba, z hacia la cámara.
+// Pared del fondo en z = -1,65 (escritorio pegado), puerta del ente en x = +2,5, salida al pasillo en x = -2,5.
 // Estética sucia (referencia del 22/10): pared en dos tonos con moho, baldosas, una bombilla en el techo,
 // sangre y cartas por el suelo que dicen que corras. La puerta del ente puede tener un boquete.
 
 import { THREE, materialPS1, materialBrillo, luces, hornear } from './ps1.js';
 import * as tex from './texturas.js';
 
-const ANCHO = 4;
+const ANCHO = 5;
 const FONDO = 3.3;
 const ALTO = 2.6;
 const PUERTA = { z0: -0.1, z1: 0.8, alto: 2.1 };
@@ -18,8 +18,8 @@ export const BOQUETE = [ANCHO / 2, PUERTA.alto * (1 - 18 / 64), ZP];
 export const POSES = {
   sentado: { pos: [0, 1.15, 0.02], mira: [0, 1.08, -1.15] },
   dePie: { pos: [0, 1.62, 0.1] },
-  puertaDerecha: [2, 1.3, ZP],
-  puertaIzquierda: [-2, 1.4, ZP],
+  puertaDerecha: [ANCHO / 2, 1.3, ZP],
+  puertaIzquierda: [-ANCHO / 2, 1.4, ZP],
 };
 
 // Luces de la habitación (huecos de luces.punto).
@@ -279,7 +279,7 @@ export function crearHabitacion(rng) {
   };
   encender(true);
   luces.punto(L_PANTALLA, [0, 1.12, -0.95], 0xff2020, 0.9, 1.9);
-  luces.punto(L_PASILLO, [-2.8, 2.1, ZP], 0xd8c070, 0.9, 3.2);
+  luces.punto(L_PASILLO, [-ANCHO / 2 - 0.8, 2.1, ZP], 0xd8c070, 0.9, 3.2);
 
   return {
     grupo,

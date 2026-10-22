@@ -119,16 +119,23 @@ export function materialBrillo(opciones = {}) {
 // Paso final: 15 bits con tramado Bayer 4×4, viñeta y desfase de color en los bordes.
 const POST_FRAG = `
 uniform sampler2D tColor;
+uniform float uGlitch;
+uniform float uSemilla;
 varying vec2 vUv;
 float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
 float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
 void main() {
-  vec2 c = vUv - 0.5;
-  vec2 desv = c * dot(c, c) * 0.025;
+  // Glitch: bandas horizontales desplazadas y el desfase de color disparado.
+  vec2 uv = vUv;
+  float banda = floor(uv.y * 18.0);
+  float azar = fract(sin(banda * 91.7 + uSemilla) * 43758.5453);
+  if (azar < 0.35 * uGlitch) uv.x += (azar / (0.35 * uGlitch) - 0.5) * 0.12;
+  vec2 c = uv - 0.5;
+  vec2 desv = c * dot(c, c) * 0.025 + vec2(0.012 * uGlitch, 0.0);
   vec3 col = vec3(
-    texture2D(tColor, vUv + desv).r,
-    texture2D(tColor, vUv).g,
-    texture2D(tColor, vUv - desv).b
+    texture2D(tColor, uv + desv).r,
+    texture2D(tColor, uv).g,
+    texture2D(tColor, uv - desv).b
   );
   col = pow(max(col, 0.0), vec3(1.0 / 2.2));
   col *= mix(0.35, 1.0, smoothstep(0.78, 0.3, length(c)));
@@ -153,7 +160,7 @@ export function crearMotor(contenedor) {
     depthBuffer: true,
   });
   const post = new THREE.ShaderMaterial({
-    uniforms: { tColor: { value: rt.texture } },
+    uniforms: { tColor: { value: rt.texture }, uGlitch: { value: 0 }, uSemilla: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: POST_FRAG,
     depthTest: false,
@@ -191,6 +198,11 @@ export function crearMotor(contenedor) {
     escena,
     camara,
     lienzo,
+    // Fotograma roto (1) o normal (0).
+    glitch(k) {
+      post.uniforms.uGlitch.value = k;
+      post.uniforms.uSemilla.value = Math.random() * 100;
+    },
     render() {
       renderer.setRenderTarget(rt);
       renderer.render(escena, camara);

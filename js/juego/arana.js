@@ -1,113 +1,174 @@
-// El segundo monstruo: se arrastra con seis extremidades como una araña, torso largo y cabeza del revés
-// con varios ojos rojos. Glitch: sus vértices saltan mucho más que los del resto (rejilla gruesa) y de vez
-// en cuando salta de pose de golpe. Mira y avanza hacia +z local.
+// El segundo monstruo, en dos variantes (máquina que imita algo vivo, con piel cosida y glitch):
+// - 'a' (agujas): espina de radiador tumbada y seis patas larguísimas de tres tramos, con las rodillas muy
+//   por encima del cuerpo y puntas de aguja.
+// - 'b' (brazos): costillar del revés y seis patas que son brazos humanos (chapa y piel) con las manos
+//   apoyadas en el suelo; la cabeza cuelga debajo.
+// Las dos: cabeza del revés con cara de piel, LED rojos y dientes. Sus vértices saltan más que los del resto
+// (rejilla gruesa) y a veces salta de pose. Mira y avanza hacia +z local. animar() se llama a 12 fps.
 
 import { THREE, materialPS1, materialBrillo } from './ps1.js';
 import * as tex from './texturas.js';
 import { createRng } from '../glitch.js';
 
 const REJILLA = 0.3; // < 1: temblor exagerado
-const POSES_POR_CICLO = 4;
 
-export function crearArana() {
-  const rng = createRng(6006);
-  const piel = materialPS1({ map: tex.piel(rng, '#24201f'), rejilla: REJILLA });
+export function crearArana(variante = 'a') {
+  const rng = createRng(variante === 'a' ? 6006 : 6116);
+  const metal = materialPS1({ map: tex.chapa(rng), rejilla: REJILLA });
+  const oscuroM = materialPS1({ color: 0x232426, rejilla: REJILLA });
+  const piel = materialPS1({ map: tex.pielHumana(rng), side: THREE.DoubleSide, rejilla: REJILLA });
+  const cara = materialPS1({ map: tex.mascara(rng), side: THREE.DoubleSide, rejilla: REJILLA });
   const pecho = materialPS1({ map: tex.costillas(rng), rejilla: REJILLA });
   const diente = materialPS1({ color: 0xb8ad92, rejilla: REJILLA });
-  const negro = materialBrillo({ color: 0x120103, rejilla: REJILLA });
   const ojo = materialBrillo({ color: 0xff1a1a, fog: false, rejilla: REJILLA });
   const grupo = new THREE.Group();
   const cuerpo = new THREE.Group();
-  cuerpo.position.y = 0.45;
   grupo.add(cuerpo);
+  grupo.scale.setScalar(1.2); // que llene el pasillo
 
-  // Torso largo, tumbado a lo largo de z, con la espalda arqueada.
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 1.4, 7, 4), pecho);
-  torso.rotation.x = Math.PI / 2;
-  torso.scale.x = 1.15;
-  cuerpo.add(torso);
-  for (let i = 0; i < 12; i++) {
-    const v = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.05), piel);
-    v.position.set(0, 0.15 + Math.sin((i / 11) * Math.PI) * 0.04, -0.62 + i * 0.11);
-    cuerpo.add(v);
-  }
+  // Barra de largo l que sale hacia +y (sube) o hacia −y (cuelga) desde el origen del grupo.
+  const tramo = (padre, l, r0, r1, material, sube) => {
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, l, 5, 1), material);
+    m.position.y = sube ? l / 2 : -l / 2;
+    g.add(m);
+    padre.add(g);
+    return g;
+  };
 
-  // Seis extremidades: hombro alto, codo arriba y la punta clavada en el suelo.
   const patas = [];
-  for (const z of [0.5, 0, -0.5]) {
-    for (const s of [-1, 1]) {
-      const raiz = new THREE.Group();
-      raiz.position.set(s * 0.15, 0, z);
-      cuerpo.add(raiz);
-      const alto = new THREE.Group();
-      raiz.add(alto);
-      const a = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.7, 5), piel);
-      a.position.y = 0.35;
-      alto.add(a);
-      alto.rotation.z = -s * 0.75;
-      const bajo = new THREE.Group();
-      bajo.position.y = 0.7;
-      alto.add(bajo);
-      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.012, 1.0, 5), piel);
-      b.position.y = -0.5;
-      bajo.add(b);
-      bajo.rotation.z = s * 1.15;
-      const una = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.08, 3), negro);
-      una.position.y = -1.02;
-      una.rotation.x = Math.PI;
-      bajo.add(una);
-      patas.push({ alto, bajo, s, fase: (z === 0 ? 0 : Math.PI) + (s > 0 ? Math.PI : 0) });
+  // Pata de tres tramos: sube y se abre (L1), baja abierta (L2) y casi vertical hasta el suelo (L3).
+  // giro: hacia delante (+) o hacia atrás (−). Ángulos totales elegidos para que la punta toque el suelo.
+  const pata = (z, s, giro, L, conPiel, final) => {
+    const raiz = new THREE.Group();
+    raiz.position.set(s * 0.12, 0, z);
+    raiz.rotation.y = -s * giro;
+    cuerpo.add(raiz);
+    const alto = tramo(raiz, L[0], 0.035, 0.028, metal, true);
+    alto.rotation.z = -s * 0.7;
+    if (conPiel) {
+      const manga = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, L[0] * 0.6, 6, 1, true, rng() * 6, 3.5), piel);
+      manga.position.y = L[0] * 0.4;
+      alto.add(manga);
     }
-  }
+    const rodilla = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.012, 4, 6), oscuroM);
+    rodilla.position.y = L[0];
+    alto.add(rodilla);
+    const medio = tramo(alto, L[1], 0.028, 0.02, conPiel ? metal : oscuroM, false);
+    medio.position.y = L[0];
+    medio.rotation.z = s * 1.11;
+    const bajo = tramo(medio, L[2], 0.02, 0.008, metal, false);
+    bajo.position.y = -L[1];
+    bajo.rotation.z = -s * 0.51;
+    final(bajo, L[2], s);
+    patas.push({ alto, medio, bajo, s, fase: patas.length % 2 ? Math.PI : 0 });
+  };
 
-  // Cabeza del revés al frente: la boca arriba, los ojos abajo.
+  // Cabeza del revés con cara de piel, LED y dientes.
   const cabeza = new THREE.Group();
-  cabeza.position.set(0, 0.05, 0.85);
-  cabeza.rotation.z = Math.PI;
   cuerpo.add(cabeza);
-  const craneo = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), piel);
-  craneo.scale.set(1, 1.3, 1.1);
-  cabeza.add(craneo);
-  const fauces = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), negro);
-  fauces.position.set(0, -0.1, 0.15);
-  cabeza.add(fauces);
+  const craneo = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), metal);
+  craneo.scale.set(1, 1.2, 1.05);
+  const mascara = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.14, 0.26, 8, 2, true, -0.95, 1.9), cara);
+  cabeza.add(craneo, mascara);
+  for (const [x, y] of [[-0.05, -0.03], [0.05, -0.03], [-0.09, 0.02], [0.09, 0.02], [-0.03, 0.06], [0.03, 0.06]]) {
+    const o = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 3), ojo);
+    o.position.set(x, y, 0.145);
+    cabeza.add(o);
+  }
   for (let i = 0; i < 8; i++) {
     for (const lado of [-1, 1]) {
-      const d = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.045, 3), diente);
-      d.position.set((i - 3.5) * 0.019, -0.1 + lado * 0.045, 0.155);
+      const d = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.03 + rng() * 0.03, 3), diente);
+      d.position.set((i - 3.5) * 0.019, -0.13 + lado * 0.03, 0.13);
       d.rotation.x = lado > 0 ? Math.PI : 0;
       cabeza.add(d);
     }
   }
-  const ojos = [];
-  for (const [x, y] of [[-0.06, 0.07], [0.06, 0.07], [-0.1, 0.12], [0.1, 0.12], [-0.03, 0.15], [0.03, 0.15]]) {
-    const o = new THREE.Mesh(new THREE.SphereGeometry(0.016, 4, 3), ojo);
-    o.position.set(x, y, 0.15);
-    cabeza.add(o);
-    ojos.push(o);
+  cabeza.rotation.z = Math.PI; // del revés
+
+  if (variante === 'a') {
+    cuerpo.position.y = 0.55;
+    // Espina de radiador: barra central con costillas de chapa y un parche de piel cosido encima.
+    const eje = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 1.5, 6), oscuroM);
+    eje.rotation.x = Math.PI / 2;
+    cuerpo.add(eje);
+    for (let i = 0; i < 11; i++) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.32 - Math.abs(i - 5) * 0.02, 0.02, 0.04), metal);
+      c.position.set(0, 0.03, -0.65 + i * 0.13);
+      cuerpo.add(c);
+    }
+    const parche = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.6, 6, 1, true, -1.2, 2.4), piel);
+    parche.rotation.x = Math.PI / 2;
+    parche.rotation.y = Math.PI;
+    parche.position.set(0, 0.04, -0.1);
+    cuerpo.add(parche);
+    cabeza.position.set(0, 0.0, 0.85);
+    const aguja = (bajo, L) => {
+      const p = new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.16, 3), oscuroM);
+      p.position.y = -L - 0.06;
+      p.rotation.x = Math.PI;
+      bajo.add(p);
+    };
+    for (const [z, giro] of [[0.5, 0.75], [0, -0.9], [-0.5, -0.75]]) {
+      for (const s of [-1, 1]) pata(z, s, giro, [0.75, 0.7, 0.5], false, aguja);
+    }
+  } else {
+    cuerpo.position.y = 0.7;
+    // Costillar del revés (las costillas abajo, la columna arriba) y piel colgando.
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.15, 1.3, 7, 3), pecho);
+    torso.rotation.x = Math.PI / 2;
+    torso.rotation.y = Math.PI;
+    torso.scale.x = 1.1;
+    cuerpo.add(torso);
+    const colgajo = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.2, 0.7, 6, 1, true, 2.2, 2.2), piel);
+    colgajo.rotation.x = Math.PI / 2;
+    colgajo.position.set(0, -0.02, 0.15);
+    cuerpo.add(colgajo);
+    // La cabeza cuelga por debajo de la parte delantera.
+    cabeza.position.set(0, -0.32, 0.6);
+    const cuello = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 5), oscuroM);
+    cuello.position.set(0, -0.15, 0.6);
+    cuerpo.add(cuello);
+    // Mano apoyada al final de cada pata, con los dedos abiertos.
+    const manoFinal = (bajo, L, s) => {
+      const mano = new THREE.Group();
+      mano.position.y = -L;
+      mano.rotation.z = s * 0.1;
+      bajo.add(mano);
+      const palma = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.09), metal);
+      mano.add(palma);
+      for (let f = 0; f < 4; f++) {
+        const d = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.13), f % 2 ? piel : oscuroM);
+        d.position.set((f - 1.5) * 0.022, 0, 0.1);
+        d.rotation.y = (f - 1.5) * 0.25;
+        mano.add(d);
+      }
+    };
+    for (const [z, giro] of [[0.45, 0.7], [0, -0.9], [-0.45, -0.7]]) {
+      for (const s of [-1, 1]) pata(z, s, giro, [0.85, 0.8, 0.6], true, manoFinal);
+    }
   }
 
-  const paso = (fase) => Math.floor((fase * POSES_POR_CICLO) / (Math.PI * 2)) * ((Math.PI * 2) / POSES_POR_CICLO);
   let tiron = 0;
-
   return {
     grupo,
     cabeza,
-    // Gateo a saltos más el glitch: temblor de patas y, a veces, un salto de pose de un fotograma.
+    // Gateo (fase en radianes, avanzada a 12 fps por quien llama) y glitch: temblor de patas y, a veces,
+    // un salto de pose de un par de fotogramas.
     animar(fase, rnd) {
-      const f = paso(fase);
       for (const p of patas) {
-        const u = Math.sin(f + p.fase);
-        p.alto.rotation.z = -p.s * (0.75 + 0.25 * Math.max(0, u)) + (rnd() - 0.5) * 0.15;
-        p.alto.rotation.x = 0.35 * u;
-        p.bajo.rotation.z = p.s * (1.15 - 0.2 * Math.max(0, u));
+        const u = Math.sin(fase + p.fase);
+        p.alto.rotation.x = 0.35 * u + (rnd() - 0.5) * 0.12;
+        p.alto.rotation.z = -p.s * (0.7 + 0.18 * Math.max(0, u));
+        p.medio.rotation.z = p.s * (1.11 - 0.15 * Math.max(0, u));
       }
-      cabeza.rotation.y = (rnd() - 0.5) * 0.3;
+      cabeza.rotation.y = (rnd() - 0.5) * 0.4;
       if (tiron > 0) tiron--;
-      else if (rnd() < 0.06) tiron = 2;
+      else if (rnd() < 0.08) tiron = 2;
       cuerpo.position.x = tiron > 0 ? (rnd() - 0.5) * 0.5 : 0;
       cuerpo.scale.setScalar(tiron > 0 ? 0.85 + rnd() * 0.4 : 1);
       cuerpo.rotation.z = tiron > 0 ? (rnd() - 0.5) * 0.8 : 0;
+      return tiron > 0;
     },
   };
 }

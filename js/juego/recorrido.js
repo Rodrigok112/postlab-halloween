@@ -4,13 +4,13 @@
 // giro en grados: + a la derecha, − a la izquierda, respecto al tramo anterior.
 // Tras la primera esquina el pasillo sigue recto (sigueRecto m): de ahí sale el segundo monstruo.
 
-// Centro del cruce, justo al otro lado de la puerta izquierda (x = −2) de la habitación.
-export const CRUCE = { x: -2.8, z: 0.35 };
+// Centro del cruce, justo al otro lado de la puerta izquierda (x = −2,5) de la habitación.
+export const CRUCE = { x: -3.3, z: 0.35 };
 
 export const RUTAS = {
   izquierda: {
     rumbo: Math.PI, // hacia +z
-    sigueRecto: 22,
+    sigueRecto: 40,
     tramos: [
       { largo: 14, giro: 0 },
       { largo: 12, giro: 90 },
@@ -20,7 +20,7 @@ export const RUTAS = {
   },
   derecha: {
     rumbo: 0, // hacia −z
-    sigueRecto: 22,
+    sigueRecto: 40,
     tramos: [
       { largo: 14, giro: 0 },
       { largo: 10, giro: 90 },
