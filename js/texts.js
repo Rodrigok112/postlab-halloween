@@ -69,3 +69,8 @@ export function textFor(s) {
   if (!p) return { title: '', sub: '', extra: '', opciones: [] };
   return { title: p.title, sub: '', extra: p.extra ?? '', opciones: (p.opciones ?? SN).map((o) => ({ ...o })) };
 }
+
+// Lo que dice el ente cuando sus ojos aparecen en el boquete de la puerta.
+export function ahiEstas(nombre) {
+  return nombre ? `ahí estás, ${nombre}` : 'ahí estás';
+}

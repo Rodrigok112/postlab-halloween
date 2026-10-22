@@ -1,53 +1,81 @@
-// Recorrido del pasillo: tres tramos rectos con dos giros automáticos. Funciones puras.
+// Recorridos del pasillo: salen del cruce que hay tras la puerta izquierda de la habitación.
+// Izquierda: corto (57 m, unos 30 s). Derecha: largo y con más curvas (95 m, unos 50 s). Funciones puras.
 // rumbo = giro de cámara alrededor de y (convención de Three.js): mira hacia (-sin r, 0, -cos r).
 // giro en grados: + a la derecha, − a la izquierda, respecto al tramo anterior.
+// Tras la primera esquina el pasillo sigue recto (sigueRecto m): de ahí sale el segundo monstruo.
 
-export const TRAMOS = [
-  { largo: 12, giro: 0 },
-  { largo: 10, giro: 90 },
-  { largo: 12, giro: -90 },
-];
+// Centro del cruce, justo al otro lado de la puerta izquierda (x = −2) de la habitación.
+export const CRUCE = { x: -2.8, z: 0.35 };
 
-const RUMBO_INICIAL = Math.PI / 2; // hacia −x
+export const RUTAS = {
+  izquierda: {
+    rumbo: Math.PI, // hacia +z
+    sigueRecto: 22,
+    tramos: [
+      { largo: 14, giro: 0 },
+      { largo: 12, giro: 90 },
+      { largo: 14, giro: -90 },
+      { largo: 17, giro: 90 },
+    ],
+  },
+  derecha: {
+    rumbo: 0, // hacia −z
+    sigueRecto: 22,
+    tramos: [
+      { largo: 14, giro: 0 },
+      { largo: 10, giro: 90 },
+      { largo: 8, giro: -90 },
+      { largo: 8, giro: 90 },
+      { largo: 10, giro: -90 },
+      { largo: 9, giro: 90 },
+      { largo: 12, giro: -90 },
+      { largo: 24, giro: -90 },
+    ],
+  },
+};
+
 const MEDIO_GIRO_M = 1; // el giro se reparte en el metro antes y el metro después de la esquina
+const smooth = (u) => u * u * (3 - 2 * u);
 
-// Rumbo y punto de inicio de cada tramo.
-const SEGMENTOS = (() => {
-  const out = [];
-  let rumbo = RUMBO_INICIAL;
-  let x = 0, z = 0, desde = 0;
-  for (const t of TRAMOS) {
+export function crearRecorrido(ruta, origen = CRUCE) {
+  const segmentos = [];
+  let rumbo = ruta.rumbo;
+  let x = origen.x, z = origen.z, desde = 0;
+  for (const t of ruta.tramos) {
     rumbo -= (t.giro * Math.PI) / 180;
-    out.push({ desde, largo: t.largo, rumbo, x, z });
+    segmentos.push({ desde, largo: t.largo, rumbo, x, z });
     x += -Math.sin(rumbo) * t.largo;
     z += -Math.cos(rumbo) * t.largo;
     desde += t.largo;
   }
-  return out;
-})();
+  const largo = desde;
+  const esquinas = segmentos.slice(1).map((s) => s.desde);
 
-export function largoTotal() {
-  return TRAMOS.reduce((a, t) => a + t.largo, 0);
-}
-
-const smooth = (u) => u * u * (3 - 2 * u);
-
-export function poseEn(dIn) {
-  const d = Math.max(0, Math.min(dIn, largoTotal()));
-  let i = SEGMENTOS.findIndex((s) => d < s.desde + s.largo);
-  if (i < 0) i = SEGMENTOS.length - 1;
-  const s = SEGMENTOS[i];
-  const k = d - s.desde;
-  const x = s.x + -Math.sin(s.rumbo) * k;
-  const z = s.z + -Math.cos(s.rumbo) * k;
-
-  let rumbo = s.rumbo;
-  const ant = SEGMENTOS[i - 1];
-  const sig = SEGMENTOS[i + 1];
-  if (ant && k < MEDIO_GIRO_M) {
-    rumbo = ant.rumbo + (s.rumbo - ant.rumbo) * smooth((k + MEDIO_GIRO_M) / (2 * MEDIO_GIRO_M));
-  } else if (sig && s.largo - k < MEDIO_GIRO_M) {
-    rumbo = s.rumbo + (sig.rumbo - s.rumbo) * smooth((k - (s.largo - MEDIO_GIRO_M)) / (2 * MEDIO_GIRO_M));
+  function poseEn(dIn) {
+    const d = Math.max(0, Math.min(dIn, largo));
+    let i = segmentos.findIndex((s) => d < s.desde + s.largo);
+    if (i < 0) i = segmentos.length - 1;
+    const s = segmentos[i];
+    const k = d - s.desde;
+    const px = s.x + -Math.sin(s.rumbo) * k;
+    const pz = s.z + -Math.cos(s.rumbo) * k;
+    let r = s.rumbo;
+    const ant = segmentos[i - 1];
+    const sig = segmentos[i + 1];
+    if (ant && k < MEDIO_GIRO_M) {
+      r = ant.rumbo + (s.rumbo - ant.rumbo) * smooth((k + MEDIO_GIRO_M) / (2 * MEDIO_GIRO_M));
+    } else if (sig && s.largo - k < MEDIO_GIRO_M) {
+      r = s.rumbo + (sig.rumbo - s.rumbo) * smooth((k - (s.largo - MEDIO_GIRO_M)) / (2 * MEDIO_GIRO_M));
+    }
+    return { x: px, z: pz, rumbo: r };
   }
-  return { x, z, rumbo };
+
+  // Punto a d m pasada la primera esquina, siguiendo recto (el pasillo sin salida del segundo monstruo).
+  const s0 = segmentos[0];
+  function recto(d) {
+    const k = s0.largo + Math.max(0, Math.min(d, ruta.sigueRecto));
+    return { x: s0.x + -Math.sin(s0.rumbo) * k, z: s0.z + -Math.cos(s0.rumbo) * k, rumbo: s0.rumbo };
+  }
+
+  return { segmentos, largo, esquinas, sigueRecto: ruta.sigueRecto, poseEn, recto };
 }

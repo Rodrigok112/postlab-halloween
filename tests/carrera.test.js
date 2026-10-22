@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import {
   createCarrera, tap, update, distancia, PASO_M, LARGO_M, VENTAJA_M, DT_MAX_S,
 } from '../js/juego/carrera.js';
+import { crearRecorrido, RUTAS } from '../js/juego/recorrido.js';
 
 // Simula un ritmo constante de toques durante como mucho maxS segundos.
-function simular(toquesPorSegundo, maxS = 60) {
-  let c = createCarrera();
+function simular(toquesPorSegundo, maxS = 90, largo = LARGO_M) {
+  let c = createCarrera(largo);
   const dt = 1 / 120;
   let siguiente = 0;
   let t = 0;
@@ -19,7 +20,7 @@ function simular(toquesPorSegundo, maxS = 60) {
 }
 
 test('estado inicial: el ente empieza detrás con ventaja', () => {
-  assert.deepEqual(createCarrera(), { jugador: 0, ente: -VENTAJA_M, toques: 0, t: 0, estado: 'corriendo' });
+  assert.deepEqual(createCarrera(), { jugador: 0, ente: -VENTAJA_M, toques: 0, t: 0, estado: 'corriendo', largo: LARGO_M });
   assert.equal(distancia(createCarrera()), VENTAJA_M);
 });
 
@@ -41,11 +42,20 @@ test('a 3,5 toques por segundo te atrapa', () => {
   assert.equal(simular(3.5).c.estado, 'atrapado');
 });
 
-test('a 4,5 toques por segundo escapas en unos 20 s', () => {
-  const { c, t } = simular(4.5);
+test('por defecto el largo es el del camino izquierdo', () => {
+  assert.equal(LARGO_M, crearRecorrido(RUTAS.izquierda).largo);
+});
+
+test('izquierda: a 5 toques por segundo escapas en unos 30 s', () => {
+  const { c, t } = simular(5, 90, crearRecorrido(RUTAS.izquierda).largo);
   assert.equal(c.estado, 'escapado');
-  assert.ok(t < 21, `tardó ${t.toFixed(1)} s`);
-  assert.ok(c.toques >= 85 && c.toques <= 95, `${c.toques} toques`);
+  assert.ok(t > 27 && t < 33, `tardó ${t.toFixed(1)} s`);
+});
+
+test('derecha: a 5 toques por segundo escapas en unos 50 s', () => {
+  const { c, t } = simular(5, 90, crearRecorrido(RUTAS.derecha).largo);
+  assert.equal(c.estado, 'escapado');
+  assert.ok(t > 47 && t < 53, `tardó ${t.toFixed(1)} s`);
 });
 
 test('un salto de tiempo enorme (pestaña en segundo plano) avanza como mucho DT_MAX_S', () => {

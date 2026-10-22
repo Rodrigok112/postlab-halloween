@@ -1,40 +1,77 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { poseEn, largoTotal, TRAMOS } from '../js/juego/recorrido.js';
+import { crearRecorrido, RUTAS, CRUCE } from '../js/juego/recorrido.js';
 
 const cerca = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+const izq = crearRecorrido(RUTAS.izquierda);
+const der = crearRecorrido(RUTAS.derecha);
 
 // rumbo = giro de cámara alrededor de y (convención de Three.js): mira a (-sin r, 0, -cos r).
-test('tres tramos de 12, 10 y 12 m: 34 m en total', () => {
-  assert.deepEqual(TRAMOS.map((t) => t.largo), [12, 10, 12]);
-  assert.equal(largoTotal(), 34);
+test('la izquierda es la corta (57 m) y la derecha la larga, con más curvas (95 m)', () => {
+  assert.equal(izq.largo, 57);
+  assert.equal(der.largo, 95);
+  assert.ok(der.esquinas.length > izq.esquinas.length);
 });
 
-test('empieza en el origen mirando hacia −x', () => {
-  const p = poseEn(0);
-  assert.ok(cerca(p.x, 0) && cerca(p.z, 0));
-  assert.ok(cerca(p.rumbo, Math.PI / 2));
+test('las dos salen del cruce: la izquierda hacia +z y la derecha hacia −z', () => {
+  const a = izq.poseEn(0), b = der.poseEn(0);
+  assert.ok(cerca(a.x, CRUCE.x) && cerca(a.z, CRUCE.z));
+  assert.ok(cerca(b.x, CRUCE.x) && cerca(b.z, CRUCE.z));
+  assert.ok(cerca(-Math.cos(a.rumbo), 1), 'izquierda mira a +z');
+  assert.ok(cerca(-Math.cos(b.rumbo), -1), 'derecha mira a −z');
 });
 
-test('esquinas y final en su sitio', () => {
-  const a = poseEn(12), b = poseEn(22), c = poseEn(34);
-  assert.ok(cerca(a.x, -12) && cerca(a.z, 0), 'primera esquina');
-  assert.ok(cerca(b.x, -12) && cerca(b.z, -10), 'segunda esquina');
-  assert.ok(cerca(c.x, -24) && cerca(c.z, -10), 'final');
-});
-
-test('primer giro a la derecha (hacia −z) y segundo a la izquierda (otra vez −x)', () => {
-  assert.ok(cerca(poseEn(17).rumbo, 0));
-  assert.ok(cerca(poseEn(30).rumbo, Math.PI / 2));
+test('la primera esquina está a 14 m en los dos caminos', () => {
+  assert.equal(izq.esquinas[0], 14);
+  assert.equal(der.esquinas[0], 14);
+  const e = izq.poseEn(14);
+  assert.ok(cerca(e.x, CRUCE.x) && cerca(e.z, CRUCE.z + 14));
 });
 
 test('el rumbo cambia de forma continua', () => {
-  for (let d = 0; d < 34; d += 0.1) {
-    assert.ok(Math.abs(poseEn(d + 0.1).rumbo - poseEn(d).rumbo) < 0.2, `salto en ${d.toFixed(1)} m`);
+  for (const r of [izq, der]) {
+    for (let d = 0; d < r.largo; d += 0.1) {
+      assert.ok(Math.abs(r.poseEn(d + 0.1).rumbo - r.poseEn(d).rumbo) < 0.2, `salto en ${d.toFixed(1)} m`);
+    }
   }
 });
 
 test('fuera de rango se limita a los extremos', () => {
-  assert.deepEqual(poseEn(-5), poseEn(0));
-  assert.deepEqual(poseEn(99), poseEn(34));
+  assert.deepEqual(izq.poseEn(-5), izq.poseEn(0));
+  assert.deepEqual(der.poseEn(999), der.poseEn(95));
+});
+
+test('el pasillo que sigue recto tras la primera esquina continúa en la misma dirección', () => {
+  const e = der.poseEn(14);
+  const p = der.recto(5);
+  assert.ok(cerca(p.x, e.x) && cerca(p.z, e.z - 5));
+  assert.ok(der.sigueRecto >= 22);
+});
+
+// Muestras del eje de cada pasillo, para comprobar que ninguno pisa la habitación ni a otro.
+const muestras = (fn, desde, hasta) => {
+  const out = [];
+  for (let d = desde; d <= hasta; d += 0.5) out.push(fn(d));
+  return out;
+};
+const minDist = (as, bs) => Math.min(...as.flatMap((a) => bs.map((b) => Math.hypot(a.x - b.x, a.z - b.z))));
+
+test('ningún pasillo entra en la habitación', () => {
+  for (const r of [izq, der]) {
+    for (const p of [...muestras(r.poseEn, 0, r.largo), ...muestras(r.recto, 0, r.sigueRecto)]) {
+      const dentro = p.x > -2.5 && p.x < 2.5 && p.z > -2.15 && p.z < 2.15;
+      assert.ok(!dentro, `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
+    }
+  }
+});
+
+test('los pasillos no se tocan entre sí (al menos 2,4 m entre ejes)', () => {
+  const tramosIzq = muestras(izq.poseEn, 2, izq.largo);
+  const tramosDer = muestras(der.poseEn, 2, der.largo);
+  const rectoIzq = muestras(izq.recto, 2, izq.sigueRecto);
+  const rectoDer = muestras(der.recto, 2, der.sigueRecto);
+  assert.ok(minDist(tramosIzq, tramosDer) >= 2.4, 'izquierda contra derecha');
+  assert.ok(minDist(rectoIzq, tramosDer) >= 2.4 && minDist(rectoDer, tramosIzq) >= 2.4, 'rectos contra el otro camino');
+  assert.ok(minDist(rectoIzq, muestras(izq.poseEn, 17, izq.largo)) >= 2.4, 'recto izquierdo contra su camino');
+  assert.ok(minDist(rectoDer, muestras(der.poseEn, 17, der.largo)) >= 2.4, 'recto derecho contra su camino');
 });
