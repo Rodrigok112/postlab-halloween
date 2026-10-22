@@ -377,3 +377,30 @@ body.nivel-5 .si-media { border-radius: 0; }
     linear-gradient(#cfe8f2 0 58%, #7fae4f 58% 70%, #5d8f37 70%);
   image-rendering: pixelated;
 }
+
+/* «ahí estás, {nombre}»: letra a letra, abajo, en rojo. */
+.juego-dialogo {
+  position: absolute; left: 0; right: 0; bottom: 14%;
+  margin: 0; padding: 0 16px; text-align: center;
+  font-size: clamp(28px, 9vw, 54px);
+  color: #e0141c;
+  text-shadow: 2px 2px 0 #000;
+}
+/* Cruce: izquierda o derecha, con 4 s de plazo. */
+.juego-eleccion {
+  position: absolute; left: 16px; right: 16px; bottom: 12%;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.juego-eleccion .lado {
+  font: inherit; font-size: clamp(24px, 7vw, 40px);
+  padding: 14px 8px;
+  color: #fff6d8; background: rgba(0, 0, 0, .55);
+  border: 3px solid #fff6d8; border-radius: 0;
+  cursor: pointer;
+}
+.juego-eleccion .lado:active { background: #9e0b12; }
+.juego-tiempo {
+  grid-column: 1 / -1; height: 8px; background: #e0141c;
+  transform-origin: left; animation: plazo linear both;
+}
+@keyframes plazo { from { transform: scaleX(1); } to { transform: scaleX(0); } }

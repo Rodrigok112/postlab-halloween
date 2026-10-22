@@ -238,7 +238,7 @@ function finish(camino) {
     later(() => {
       // El juego escucha este evento y llama a preventDefault() si se encarga del camino.
       const alFallar = () => renderMuerte(app, start);
-      const ev = new CustomEvent('encuesta:fin', { detail: { camino, reiniciar: start, alFallar }, cancelable: true });
+      const ev = new CustomEvent('encuesta:fin', { detail: { camino, nombre: state.nombre, reiniciar: start, alFallar }, cancelable: true });
       const handled = !window.dispatchEvent(ev);
       if (!handled) alFallar();
     }, BLACK_MS);
@@ -257,11 +257,11 @@ function start() {
 makeDither();
 start();
 
-// Atajo de prueba: #juego-final2 o #juego-pasillo salta la encuesta y abre el juego directamente.
-const atajo = /^#juego-(final2|pasillo)$/.exec(window.location.hash);
+// Atajo de prueba: #juego-final2, #juego-pasillo o #juego-cruce salta la encuesta y abre el juego directamente.
+const atajo = /^#juego-(final2|pasillo|cruce)$/.exec(window.location.hash);
 if (atajo) {
   juegoListo.then(() => {
     const alFallar = () => renderMuerte(app, start);
-    window.dispatchEvent(new CustomEvent('encuesta:fin', { detail: { camino: atajo[1], reiniciar: start, alFallar }, cancelable: true }));
+    window.dispatchEvent(new CustomEvent('encuesta:fin', { detail: { camino: atajo[1], nombre: 'Rodrigo', reiniciar: start, alFallar }, cancelable: true }));
   });
 }

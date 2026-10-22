@@ -1,22 +1,34 @@
 // El juego: toma el control cuando la encuesta termina (evento «encuesta:fin»).
-// Habitación (cinemática) → final 2 o pasillo (carrera) → «HAS MUERTO» o «HAS ESCAPADO».
+// Habitación (cinemática) → final 2, o cruce → elegir izquierda/derecha → carrera por el pasillo
+// (giro de cabeza tras unos toques, segundo monstruo al final del primer tramo) → «HAS MUERTO» o «HAS ESCAPADO».
 
-import { THREE, crearMotor } from './ps1.js';
+import { THREE, crearMotor, luces } from './ps1.js';
 import { crearHabitacion } from './habitacion.js';
 import { crearEnte } from './ente.js';
-import { crearPasillo } from './pasillo.js';
+import { crearArana } from './arana.js';
+import { crearPasillos } from './pasillo.js';
 import { CAMARA, ENTE, ACCIONES, DURACION } from './escenas.js';
 import { muestrear } from './linea.js';
-import { poseEn } from './recorrido.js';
+import { CRUCE } from './recorrido.js';
 import { createCarrera, tap, update, distancia, VENTAJA_M } from './carrera.js';
-import { portazo, paso, crearCoro } from './sonidos.js';
-import { thump, screamQTV } from '../audio.js';
+import { crearAcecho, actualizarAcecho, ACECHO } from './acecho.js';
+import { portazo, paso, crearCoro, astillazo, voz, crearArrastre } from './sonidos.js';
+import { thump, scream, screamQTV } from '../audio.js';
 import { createRng, createFlashGuard } from '../glitch.js';
+import { ahiEstas } from '../texts.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
 const CAPTURA_S = 1.6;
 const OJOS_CERCA_M = 2.6;
+const ELEGIR_S = 4;
+const MIRAR_ATRAS_M = 2.5; // unos 7 toques
+const MIRAR_ATRAS_S = 2.1;
+const LETRA_MS = 75;
+// Hacia dónde mira la cámara en el cruce (−x, de frente a la pared) y el rumbo de cada camino.
+const RUMBO_CRUCE = Math.PI / 2;
+// Huecos de luz durante la carrera.
+const L_LINTERNA = 0, L_META = 1, L_ARANA = 2;
 
 function el(tag, className, text) {
   const n = document.createElement(tag);
@@ -34,7 +46,9 @@ function soportaWebGL() {
   }
 }
 
-export async function iniciarJuego({ camino, reiniciar }) {
+const smooth = (u) => u * u * (3 - 2 * u);
+
+export async function iniciarJuego({ camino, reiniciar, nombre }) {
   const rng = createRng(Date.now() >>> 0);
   const guard = createFlashGuard(3);
   const contenedor = el('div', 'juego');
@@ -47,20 +61,37 @@ export async function iniciarJuego({ camino, reiniciar }) {
   contenedor.prepend(motor.lienzo);
   const { escena, camara } = motor;
   const mira = new THREE.Vector3();
+  const tmp = new THREE.Vector3();
   let raf = 0;
   let apagado = false;
   const timers = [];
   const later = (fn, ms) => timers.push(setTimeout(fn, ms));
   const quitarInput = [];
+  let coro = null;
+  let arrastre = null;
 
   // Negro total: se oculta el lienzo (más fiable que esconder la escena).
   const negro = (si) => { motor.lienzo.style.visibility = si ? 'hidden' : 'visible'; };
+
+  // Sacudida de cámara tras un golpe: desplazamiento al azar que se apaga solo.
+  let sacudidaHasta = 0;
+  let sacudidaFuerza = 0;
+  const sacudir = (fuerza, ms = 300) => { sacudidaFuerza = fuerza; sacudidaHasta = performance.now() + ms; };
+  const aplicarSacudida = (ahora) => {
+    if (ahora > sacudidaHasta) return;
+    const k = sacudidaFuerza * ((sacudidaHasta - ahora) / 300);
+    camara.position.x += (rng() - 0.5) * 0.06 * k;
+    camara.position.y += (rng() - 0.5) * 0.06 * k;
+  };
 
   const cerrar = () => {
     apagado = true;
     cancelAnimationFrame(raf);
     timers.forEach(clearTimeout);
     quitarInput.forEach((fn) => fn());
+    coro?.parar();
+    arrastre?.parar();
+    luces.apagarTodas();
     motor.destruir();
     contenedor.remove();
   };
@@ -77,10 +108,27 @@ export async function iniciarJuego({ camino, reiniciar }) {
     capa.append(fin);
   };
 
-  // ---------- Habitación ----------
+  // «ahí estás, {nombre}», letra a letra, con un sonido grave por letra.
+  let dialogo = null;
+  const hablar = (texto) => {
+    dialogo = el('p', 'juego-dialogo');
+    capa.append(dialogo);
+    [...texto].forEach((letra, i) => later(() => {
+      if (!dialogo) return;
+      dialogo.textContent += letra;
+      if (letra.trim()) voz();
+    }, i * LETRA_MS));
+  };
+  const callar = () => { dialogo?.remove(); dialogo = null; };
+
+  // ---------- Mundo: habitación, pasillos y los dos monstruos ----------
   const hab = crearHabitacion(rng);
+  const pasillos = crearPasillos(rng);
   const ente = crearEnte();
-  escena.add(hab.grupo, ente.grupo);
+  const arana = crearArana();
+  escena.add(hab.grupo, pasillos.grupo, ente.grupo, arana.grupo);
+  ente.grupo.visible = false;
+  arana.grupo.visible = false;
   escena.fog.color.set(0x000000);
   escena.fog.near = 3;
   escena.fog.far = 14;
@@ -90,36 +138,71 @@ export async function iniciarJuego({ camino, reiniciar }) {
     hab.setLuz(false);
     later(() => hab.setLuz(true), ms);
   };
-  const ejecutar = (a) => {
-    if (a.que === 'pantalla') hab.setPantalla(a.valor);
-    if (a.que === 'golpe') { thump(a.valor); parpadeo(140); }
-    if (a.que === 'revienta') { portazo(); parpadeo(180); revientaEn = performance.now(); }
-    if (a.que === 'grito') screamQTV();
-  };
+  // Posición de los ojos (para su brillo rojo en el boquete).
+  const posOjos = () => ente.ojos[0].getWorldPosition(new THREE.Vector3());
 
   let revientaEn = null;
-  const acciones = ACCIONES[camino].map((a) => ({ ...a, hecho: false }));
+  let abreEn = null;
+  const ejecutar = (a) => {
+    switch (a.que) {
+      case 'pantalla': hab.setPantalla(a.valor); break;
+      case 'boquete': astillazo(); hab.romper(); parpadeo(160); sacudir(1, 350); break;
+      case 'ojos':
+        ente.grupo.visible = true;
+        ente.oscuro(true);
+        ente.parpadear(1);
+        ente.grupo.updateMatrixWorld(true);
+        hab.luzOjos(posOjos());
+        thump(0.25);
+        coro = crearCoro();
+        coro.setCercania(0.05);
+        break;
+      case 'parpadeo': ente.parpadear(0); later(() => ente.parpadear(1), 130); break;
+      case 'dialogo': hablar(ahiEstas(nombre)); break;
+      case 'callar': callar(); break;
+      case 'revienta': ente.oscuro(false); portazo(); parpadeo(180); sacudir(1.2, 400); revientaEn = performance.now(); hab.luzOjos(null); break;
+      case 'boca': ente.boca(1); ente.alcanzar(1); break;
+      case 'grito': screamQTV(); sacudir(1.5, 900); coro?.setCercania(1); break;
+      case 'abrePuerta': abreEn = performance.now(); break;
+      case 'paso': paso(); break;
+      default: break;
+    }
+  };
+
+  const acciones = (ACCIONES[camino] ?? []).map((a) => ({ ...a, hecho: false }));
   const t0 = performance.now();
 
+  // Coloca al ente según sus claves en el tiempo t.
+  const posarEnte = (claves, t) => {
+    const e = muestrear(claves, t);
+    ente.grupo.position.set(...e.pos);
+    ente.grupo.rotation.y = Math.atan2(e.mira[0] - e.pos[0], e.mira[2] - e.pos[2]);
+    const k = claves.findIndex((c) => c.t > t);
+    const a0 = claves[Math.max(0, (k < 0 ? claves.length : k) - 1)];
+    const a1 = claves[k < 0 ? claves.length - 1 : k];
+    const u = a1.t > a0.t ? Math.min(1, Math.max(0, (t - a0.t) / (a1.t - a0.t))) : 1;
+    ente.agacharse(a0.agachado + (a1.agachado - a0.agachado) * u);
+    const anda = a0.pos.some((v, i) => v !== a1.pos[i]) && u < 1;
+    ente.andar(anda ? t * 6 : 0);
+  };
+
   const pintarHabitacion = (ahora) => {
-    const t = (ahora - t0) / 1000;
+    // window.__tFijo (solo para depurar) congela la cinemática en ese segundo.
+    const t = window.__tFijo ?? (ahora - t0) / 1000;
     for (const a of acciones) if (!a.hecho && t >= a.t) { a.hecho = true; ejecutar(a); }
     if (revientaEn !== null) {
       const u = Math.min(1, (ahora - revientaEn) / 160);
-      hab.puertaDerecha.rotation.y = -1.75 * u;
+      hab.puertaRota.rotation.y = -1.75 * u;
     }
-    const e = muestrear(ENTE[camino], t);
-    ente.grupo.position.set(...e.pos);
-    ente.grupo.rotation.y = Math.atan2(e.mira[0] - e.pos[0], e.mira[2] - e.pos[2]);
-    const k = ENTE[camino].findIndex((c) => c.t > t);
-    const a0 = ENTE[camino][Math.max(0, (k < 0 ? ENTE[camino].length : k) - 1)];
-    const a1 = ENTE[camino][k < 0 ? ENTE[camino].length - 1 : k];
-    const u = a1.t > a0.t ? Math.min(1, Math.max(0, (t - a0.t) / (a1.t - a0.t))) : 1;
-    ente.agacharse(a0.agachado + (a1.agachado - a0.agachado) * u);
-    ente.andar(t * 5);
+    if (abreEn !== null) {
+      const u = Math.min(1, (ahora - abreEn) / 300);
+      hab.puertaIzquierda.rotation.y = 0.35 + 1.15 * u;
+    }
+    posarEnte(ENTE[camino], t);
     const c = muestrear(CAMARA[camino], t);
     camara.position.set(...c.pos);
     camara.lookAt(mira.set(...c.mira));
+    aplicarSacudida(ahora);
     motor.render();
     return t >= DURACION[camino];
   };
@@ -128,39 +211,128 @@ export async function iniciarJuego({ camino, reiniciar }) {
     if (apagado) return;
     if (pintarHabitacion(ahora)) {
       if (camino === 'final2') {
+        coro?.parar();
+        coro = null;
         negro(true);
         pantallaFinal('HAS MUERTO', 'muerte-juego', null, 'otra vez', () => { cerrar(); reiniciar(); });
       } else {
-        empezarPasillo();
+        elegir();
       }
       return;
     }
     raf = requestAnimationFrame(bucleHabitacion);
   };
 
-  // ---------- Pasillo ----------
-  let pasillo = null;
-  let coro = null;
+  // ---------- Cruce y carrera ----------
 
-  function empezarPasillo() {
-    escena.remove(hab.grupo);
-    escena.remove(ente.grupo);
-    pasillo = crearPasillo(rng);
-    escena.add(pasillo.grupo);
+  // Luz y niebla de los backrooms: amarillenta, con una linterna que va con la cámara.
+  const ambientePasillo = () => {
+    luces.apagarTodas();
+    luces.ambiente(0x6a5f3a, 0.55);
+    luces.punto(L_LINTERNA, [CRUCE.x, 2.2, CRUCE.z], 0xfff0c0, 1.4, 6.5);
     escena.fog.color.set(0x15120a);
     escena.fog.near = 2;
     escena.fog.far = 13;
     escena.background.set(0x15120a);
-    coro = crearCoro();
-    correr();
+  };
+
+  const camaraEn = (x, z, yaw, pitch = 0) => {
+    camara.position.set(x, OJO_Y, z);
+    camara.rotation.set(pitch, yaw, 0, 'YXZ');
+  };
+
+  // Gira la cámara de un rumbo a otro en ms y luego llama a hecho().
+  const girar = (x, z, desde, hasta, ms, hecho) => {
+    const ini = performance.now();
+    const paso_ = (ahora) => {
+      if (apagado) return;
+      const u = Math.min(1, (ahora - ini) / ms);
+      camaraEn(x, z, desde + (hasta - desde) * smooth(u));
+      luces.mover(L_LINTERNA, [x, 2.2, z]);
+      motor.render();
+      if (u < 1) { raf = requestAnimationFrame(paso_); return; }
+      hecho();
+    };
+    raf = requestAnimationFrame(paso_);
+  };
+
+  // En el cruce: dos botones y 4 s para elegir. Si no eliges, el ente te atrapa.
+  function elegir() {
+    ente.grupo.visible = false;
+    ente.oscuro(false);
+    arana.grupo.visible = false;
+    ente.boca(0);
+    ente.alcanzar(0);
+    negro(false);
+    ambientePasillo();
+    if (!coro) coro = crearCoro();
+    coro.setCercania(0.25);
+    camaraEn(CRUCE.x, CRUCE.z, RUMBO_CRUCE);
+    motor.render();
+
+    capa.replaceChildren();
+    const caja = el('div', 'juego-eleccion');
+    const bIzq = el('button', 'lado', '← IZQUIERDA');
+    const bDer = el('button', 'lado', 'DERECHA →');
+    bIzq.type = bDer.type = 'button';
+    const tiempo = el('div', 'juego-tiempo');
+    tiempo.style.animationDuration = `${ELEGIR_S}s`;
+    caja.append(bIzq, bDer, tiempo);
+    capa.append(caja);
+
+    let elegido = false;
+    const plazo = setTimeout(() => {
+      if (elegido || apagado) return;
+      elegido = true;
+      capa.replaceChildren();
+      // El ente sale por la puerta, a tu espalda.
+      captura({
+        x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE,
+        colocar: () => {
+          ente.grupo.position.set(CRUCE.x + 1.25, 0, CRUCE.z);
+          ente.grupo.rotation.y = -Math.PI / 2;
+          ente.agacharse(0.75);
+        },
+        toques: null,
+      });
+    }, ELEGIR_S * 1000);
+    timers.push(plazo);
+
+    const elegirLado = (lado) => (ev) => {
+      ev.stopPropagation();
+      if (elegido) return;
+      elegido = true;
+      clearTimeout(plazo);
+      capa.replaceChildren();
+      const { recorrido } = pasillos.caminos[lado];
+      girar(CRUCE.x, CRUCE.z, RUMBO_CRUCE, recorrido.poseEn(0).rumbo, 450, () => correr(lado));
+    };
+    bIzq.addEventListener('pointerdown', elegirLado('izquierda'));
+    bDer.addEventListener('pointerdown', elegirLado('derecha'));
+
+    // Mientras eliges, el coro sube.
+    const ini = performance.now();
+    const espera = (ahora) => {
+      if (apagado || elegido) return;
+      coro.setCercania(0.25 + 0.6 * Math.min(1, (ahora - ini) / (ELEGIR_S * 1000)));
+      motor.render();
+      raf = requestAnimationFrame(espera);
+    };
+    raf = requestAnimationFrame(espera);
   }
 
-  function correr() {
-    let c = createCarrera();
+  function correr(lado) {
+    const { recorrido: rec, luzMeta } = pasillos.caminos[lado];
+    luces.punto(L_META, luzMeta, 0xffffff, 2.5, 9);
+    let c = createCarrera(rec.largo);
+    let acecho = crearAcecho(rec.esquinas[0]);
     let empezado = false;
+    let pausa = false;
+    let miradoAtras = false;
     let ultimo = performance.now();
     let ultimoParpadeo = 0;
     let balanceo = 0;
+    const r0 = rec.segmentos[0].rumbo;
     capa.replaceChildren(el('p', 'juego-aviso', 'TOCA PARA CORRER'));
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
@@ -169,7 +341,7 @@ export async function iniciarJuego({ camino, reiniciar }) {
     const alTocar = (ev) => {
       if (ev.type === 'keydown' && ev.code !== 'Space') return;
       if (ev.type === 'keydown') ev.preventDefault();
-      if (c.estado !== 'corriendo') return;
+      if (c.estado !== 'corriendo' || pausa) return;
       if (!empezado) { empezado = true; capa.querySelector('.juego-aviso')?.remove(); ultimo = performance.now(); }
       c = tap(c);
       balanceo = 1;
@@ -183,71 +355,184 @@ export async function iniciarJuego({ camino, reiniciar }) {
     };
     quitarInput.push(soltar);
 
+    // Giro de cabeza: el ente ya ha cruzado la puerta y te grita; luego vuelves a mirar al frente.
+    let atrasDesde = 0;
+    const mirarAtras = (ahora) => {
+      miradoAtras = true;
+      pausa = true;
+      atrasDesde = ahora;
+      const p = rec.poseEn(Math.max(0, c.jugador - 2.3));
+      ente.grupo.position.set(p.x, 0, p.z);
+      ente.grupo.rotation.y = p.rumbo + Math.PI;
+      ente.agacharse(0.5);
+      ente.andar(0);
+      ente.alcanzar(0.7);
+      ente.boca(0);
+      ente.grupo.visible = true;
+      later(() => { ente.boca(1); scream(1, 'abierto'); thump(0.8); sacudir(1.2, 600); coro.setCercania(1); }, 450);
+    };
+    const vistaAtras = (ahora, p) => {
+      const t = (ahora - atrasDesde) / 1000;
+      const ida = smooth(Math.min(1, t / 0.3));
+      const vuelta = smooth(Math.min(1, Math.max(0, (t - 1.7) / 0.3)));
+      const u = ida - vuelta;
+      camaraEn(p.x, p.z, p.rumbo + Math.PI * u, 0.12 * u);
+      if (t >= MIRAR_ATRAS_S) {
+        pausa = false;
+        ente.grupo.visible = false;
+        ente.boca(0);
+        ultimo = ahora;
+      }
+    };
+
     const bucle = (ahora) => {
       if (apagado) return;
       const dt = (ahora - ultimo) / 1000;
       ultimo = ahora;
-      if (empezado) c = update(c, dt);
+      if (empezado && !pausa) {
+        c = update(c, dt);
+        const antes = acecho.estado;
+        acecho = actualizarAcecho(acecho, c.jugador, dt);
+        if (antes === 'espera' && acecho.estado === 'corre') { scream(0.8, 'medio'); arrastre = crearArrastre(); }
+        if (acecho.estado === 'fuera' && antes !== 'fuera') {
+          arana.grupo.visible = false;
+          luces.apagar(L_ARANA);
+          arrastre?.parar();
+          arrastre = null;
+        }
+      }
+      if (empezado && !miradoAtras && c.jugador >= MIRAR_ATRAS_M) mirarAtras(ahora);
       balanceo = Math.max(0, balanceo - dt * 6);
-      const p = poseEn(c.jugador);
-      camara.position.set(p.x, OJO_Y + Math.sin(balanceo * Math.PI) * BALANCEO_M, p.z);
-      camara.rotation.set(0, p.rumbo, 0, 'YXZ');
-      pasillo.linterna.position.set(p.x, 2.2, p.z);
-      const cerca = 1 - Math.min(1, distancia(c) / (VENTAJA_M + 1));
-      coro.setCercania(empezado ? cerca : 0.1);
+      const p = rec.poseEn(c.jugador);
+      if (pausa) vistaAtras(ahora, p);
+      else {
+        camaraEn(p.x, p.z, p.rumbo);
+        camara.position.y += Math.sin(balanceo * Math.PI) * BALANCEO_M;
+      }
+      aplicarSacudida(ahora);
+      luces.mover(L_LINTERNA, [p.x, 2.2, p.z]);
+      if (!pausa) {
+        const cerca = 1 - Math.min(1, distancia(c) / (VENTAJA_M + 1));
+        coro.setCercania(empezado ? cerca : 0.15);
+      }
+
+      // El segundo monstruo, corriendo por el pasillo que sigue recto.
+      if (acecho.estado === 'corre' || acecho.estado === 'esquivado') {
+        const q = rec.recto(acecho.pos);
+        arana.grupo.visible = true;
+        arana.grupo.position.set(q.x, 0, q.z);
+        arana.grupo.rotation.y = r0;
+        arana.animar(ahora / 1000 * 16, rng);
+        luces.punto(L_ARANA, [q.x, 0.8, q.z], 0xff1010, 0.9, 2.6);
+        const hueco = (acecho.esquina - c.jugador) + acecho.pos;
+        arrastre?.setCercania(1 - Math.min(1, hueco / ACECHO.distanciaM));
+      }
+
       // Ojos rojos asomando por el borde cuando el ente está cerca.
-      if (empezado && distancia(c) < OJOS_CERCA_M && rng() < dt * 2.5 && guard.tryFlash(ahora)) {
+      if (empezado && !pausa && distancia(c) < OJOS_CERCA_M && rng() < dt * 2.5 && guard.tryFlash(ahora)) {
         ojos.style.setProperty('--lado', rng() < 0.5 ? '0' : '1');
         ojos.classList.add('on');
         later(() => ojos.classList.remove('on'), 90);
       }
-      if (ahora - ultimoParpadeo > 700 && rng() < 0.05) { pasillo.parpadeo(rng); ultimoParpadeo = ahora; }
+      if (ahora - ultimoParpadeo > 700 && rng() < 0.05) { pasillos.parpadeo(rng); ultimoParpadeo = ahora; }
       motor.render();
-      if (c.estado === 'atrapado') { soltar(); captura(c); return; }
+      if (acecho.estado === 'atrapa') { soltar(); capturaArana(c, rec); return; }
+      if (c.estado === 'atrapado') {
+        soltar();
+        const detras = rec.poseEn(Math.max(0, c.jugador - 1.6));
+        captura({
+          x: p.x, z: p.z, yaw: p.rumbo,
+          colocar: () => {
+            ente.grupo.position.set(detras.x, 0, detras.z);
+            // El ente mira hacia donde corres (hacia ti): su frente es +z local.
+            ente.grupo.rotation.y = p.rumbo + Math.PI;
+            ente.agacharse(0.75);
+          },
+          toques: c.toques,
+        });
+        return;
+      }
       if (c.estado === 'escapado') { soltar(); escapar(c); return; }
       raf = requestAnimationFrame(bucle);
     };
     raf = requestAnimationFrame(bucle);
   }
 
-  // Te atrapa: te das la vuelta, el ente está encima, grita, corte a negro.
-  function captura(c) {
-    const p = poseEn(c.jugador);
-    // A 1,8 m detrás e inclinado: la cabeza queda a menos de un metro, por encima de ti.
-    const detras = poseEn(Math.max(0, c.jugador - 1.8));
-    escena.add(ente.grupo);
-    ente.grupo.position.set(detras.x, 0, detras.z);
-    // El ente mira hacia donde corres (hacia ti): su frente es +z local.
-    ente.grupo.rotation.y = p.rumbo + Math.PI;
-    ente.agacharse(0.85);
-    const inicio = performance.now();
-    let grito = false;
+  const terminarMuerte = (toques) => {
+    coro?.parar();
+    coro = null;
+    arrastre?.parar();
+    arrastre = null;
+    negro(true);
+    pantallaFinal('HAS MUERTO', 'muerte-juego', toques, 'repetir', () => elegir());
+  };
+
+  const vibrar = () => {
     // Solo vibra si ya hubo un toque real (si no, el navegador lo bloquea y avisa en consola).
     if (navigator.vibrate && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate([200, 80, 400]);
+  };
+
+  // Te atrapa el ente: te das la vuelta, está encima con la boca abierta, grita, corte a negro.
+  function captura({ x, z, yaw, colocar, toques }) {
+    colocar();
+    ente.grupo.visible = true;
+    ente.andar(0);
+    ente.alcanzar(1);
+    ente.boca(1);
+    const inicio = performance.now();
+    let grito = false;
+    vibrar();
     const giro = (ahora) => {
       if (apagado) return;
       const t = (ahora - inicio) / 1000;
-      const u = Math.min(1, t / 0.35);
-      camara.rotation.set(0.55 * u, p.rumbo + Math.PI * u, 0, 'YXZ');
-      coro.setCercania(1);
-      if (!grito && t > 0.5) { grito = true; screamQTV(); }
+      const u = smooth(Math.min(1, t / 0.35));
+      camaraEn(x, z, yaw + Math.PI * u, 0.45 * u);
+      coro?.setCercania(1);
+      if (!grito && t > 0.45) { grito = true; screamQTV(); sacudir(1.5, 900); }
+      aplicarSacudida(ahora);
       motor.render();
       if (t < CAPTURA_S) { raf = requestAnimationFrame(giro); return; }
-      coro.parar();
-      negro(true);
-      pantallaFinal('HAS MUERTO', 'muerte-juego', c.toques, 'repetir', () => {
-        escena.remove(ente.grupo);
-        negro(false);
-        coro = crearCoro();
-        correr();
-      });
+      ente.grupo.visible = false;
+      terminarMuerte(toques);
     };
     raf = requestAnimationFrame(giro);
   }
 
+  // Te atrapa el segundo monstruo: salta hacia ti desde delante.
+  function capturaArana(c, rec) {
+    const p = rec.poseEn(c.jugador);
+    const d = new THREE.Vector2(-Math.sin(p.rumbo), -Math.cos(p.rumbo));
+    const inicio = performance.now();
+    let grito = false;
+    vibrar();
+    const salto = (ahora) => {
+      if (apagado) return;
+      const t = (ahora - inicio) / 1000;
+      const u = smooth(Math.min(1, t / 0.25));
+      // Acaba con la cabeza (0,85 m por delante de su centro) a 1 m de ti y un poco por debajo.
+      const lejos = 3.0 - 1.15 * u;
+      arana.grupo.visible = true;
+      arana.grupo.position.set(p.x + d.x * lejos, 0.75 * u, p.z + d.y * lejos);
+      arana.grupo.rotation.y = p.rumbo;
+      arana.animar(t * 20, rng);
+      camaraEn(p.x, p.z, p.rumbo, -0.25 * u);
+      if (!grito && t > 0.15) { grito = true; screamQTV(); sacudir(1.5, 900); }
+      aplicarSacudida(ahora);
+      motor.render();
+      if (t < CAPTURA_S) { raf = requestAnimationFrame(salto); return; }
+      arana.grupo.visible = false;
+      luces.apagar(L_ARANA);
+      terminarMuerte(c.toques);
+    };
+    raf = requestAnimationFrame(salto);
+  }
+
   // Llegas: flash blanco, el jardín y «HAS ESCAPADO».
   function escapar(c) {
-    coro.parar();
+    coro?.parar();
+    coro = null;
+    arrastre?.parar();
+    arrastre = null;
     thump(0.6);
     capa.replaceChildren(el('div', 'juego-flash'));
     later(() => {
@@ -257,6 +542,11 @@ export async function iniciarJuego({ camino, reiniciar }) {
     }, 700);
   }
 
+  // Para depurar desde la consola cuando se entra por un atajo de prueba.
+  if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, arana, camara, escena, hab, pasillos };
+
+  // Atajo de prueba #juego-cruce: salta la habitación.
+  if (camino === 'cruce') { elegir(); return; }
   raf = requestAnimationFrame(bucleHabitacion);
 }
 
@@ -264,5 +554,9 @@ export async function iniciarJuego({ camino, reiniciar }) {
 window.addEventListener('encuesta:fin', (ev) => {
   if (!soportaWebGL()) return;
   ev.preventDefault();
-  iniciarJuego(ev.detail).catch(() => { document.querySelector('.juego')?.remove(); ev.detail.alFallar?.(); });
+  iniciarJuego(ev.detail).catch((e) => {
+    console.error(e);
+    document.querySelector('.juego')?.remove();
+    ev.detail.alFallar?.();
+  });
 });

@@ -69,3 +69,67 @@ export function crearCoro() {
     },
   };
 }
+
+// Golpe que abre el boquete: el golpe grave de siempre más madera que cruje y se astilla.
+export function astillazo() {
+  const ctx = getContext();
+  if (!ctx) return;
+  thump(1);
+  ruidoCorto(ctx, 0.5, 3200, 0.8);
+  setTimeout(() => ruidoCorto(ctx, 0.25, 1600, 0.4), 90);
+}
+
+// Voz del ente al hablar: un zumbido grave y sucio por letra, como en DDLC pero roto.
+export function voz() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  o.type = 'square';
+  o.frequency.setValueAtTime(70 + Math.random() * 25, t);
+  o.frequency.exponentialRampToValueAtTime(48, t + 0.08);
+  const f = ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 700;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.35, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+  o.connect(f).connect(g).connect(ctx.destination);
+  o.start(t);
+  o.stop(t + 0.1);
+  ruidoCorto(ctx, 0.05, 900, 0.15);
+}
+
+// Patas del segundo monstruo contra el suelo: chasquidos rápidos en bucle. cercania: 0 a 1.
+export function crearArrastre() {
+  const ctx = getContext();
+  if (!ctx) return { setCercania() {}, parar() {} };
+  const seg = 0.36;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seg), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let k = 0; k < 6; k++) {
+    const ini = Math.floor((k / 6 + Math.random() * 0.04) * d.length);
+    for (let i = 0; i < 300 && ini + i < d.length; i++) d[ini + i] += (Math.random() * 2 - 1) * (1 - i / 300);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 1800;
+  const g = ctx.createGain();
+  g.gain.value = 0;
+  src.connect(f).connect(g).connect(ctx.destination);
+  src.start();
+  return {
+    setCercania(c) {
+      const k = Math.max(0, Math.min(c, 1));
+      g.gain.setTargetAtTime(0.9 * k * k, ctx.currentTime, 0.1);
+    },
+    parar() {
+      g.gain.setValueAtTime(0, ctx.currentTime);
+      setTimeout(() => { src.stop(); g.disconnect(); }, 100);
+    },
+  };
+}
