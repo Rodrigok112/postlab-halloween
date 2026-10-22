@@ -16,6 +16,7 @@ import { portazo, paso, crearCoro, astillazo, voz, crearArrastre } from './sonid
 import { thump, scream, screamQTV } from '../audio.js';
 import { createRng, createFlashGuard } from '../glitch.js';
 import { ahiEstas } from '../texts.js';
+import { cargarFotos } from './texturas.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
@@ -55,7 +56,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   const capa = el('div', 'juego-capa');
   contenedor.append(capa);
   document.body.append(contenedor);
-  await document.fonts.load('44px "Rubik Wet Paint"').catch(() => {});
+  await Promise.all([document.fonts.load('44px "Rubik Wet Paint"').catch(() => {}), cargarFotos()]);
 
   const motor = crearMotor(contenedor);
   contenedor.prepend(motor.lienzo);
@@ -228,7 +229,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // Luz y niebla de los backrooms: amarillenta, con una linterna que va con la cámara.
   const ambientePasillo = () => {
     luces.apagarTodas();
-    luces.ambiente(0x6a5f3a, 0.55);
+    luces.ambiente(0x6a5f3a, 0.75);
     luces.punto(L_LINTERNA, [CRUCE.x, 2.2, CRUCE.z], 0xfff0c0, 1.4, 6.5);
     escena.fog.color.set(0x15120a);
     escena.fog.near = 2;
@@ -282,7 +283,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
     let elegido = false;
     const plazo = setTimeout(() => {
-      if (elegido || apagado) return;
+      // window.__sinPlazo (solo para depurar) desactiva la captura por no elegir.
+      if (elegido || apagado || window.__sinPlazo) return;
       elegido = true;
       capa.replaceChildren();
       // El ente sale por la puerta, a tu espalda.

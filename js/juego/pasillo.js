@@ -2,7 +2,7 @@
 // (RUTAS de recorrido.js), cada uno con el pasillo que sigue recto tras la primera esquina. Papel amarillo,
 // moqueta húmeda, fluorescentes débiles, grafiti rojo cada vez más denso y la puerta-meta iluminada al final.
 
-import { THREE, materialPS1, materialBrillo } from './ps1.js';
+import { THREE, materialPS1, materialBrillo, hornear } from './ps1.js';
 import * as tex from './texturas.js';
 import { CRUCE, RUTAS, crearRecorrido } from './recorrido.js';
 
@@ -37,16 +37,20 @@ export function crearPasillos(rng) {
     m.rotation.y = rumbo;
     m.rotation.x = haciaArriba ? -Math.PI / 2 : Math.PI / 2;
     m.position.set(cx, y, cz);
+    // Sombra horneada: más oscuro junto a las paredes (local x = ±ANCHO/2).
+    m.userData.sombra = (l) => 1 - 0.4 * (Math.abs(l.x) / (ANCHO / 2)) ** 2;
     grupo.add(m);
   };
   // Pared vertical de largo × alto, centrada en (cx, y, cz), mirando hacia (nx, nz).
   const pared = (cx, cz, largo, nx, nz, alto = ALTO, y = ALTO / 2) => {
-    const geo = new THREE.PlaneGeometry(largo, alto, Math.max(1, Math.round(largo / 0.8)), 3);
+    const geo = new THREE.PlaneGeometry(largo, alto, Math.max(1, Math.round(largo / 0.8)), 5);
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * largo / 1.25, uv.getY(i) * alto / 1.25);
     const m = new THREE.Mesh(geo, papel);
     m.position.set(cx, y, cz);
     m.rotation.y = Math.atan2(nx, nz);
+    // Sombra horneada: más oscuro abajo (junto al suelo) y algo arriba (junto al techo).
+    m.userData.sombra = (l, p) => 1 - 0.45 * (1 - Math.min(1, p.y / 0.9)) ** 2 - 0.25 * Math.max(0, (p.y - 1.8) / 0.7) ** 2;
     grupo.add(m);
     return m;
   };
@@ -152,6 +156,8 @@ export function crearPasillos(rng) {
     }
     caminos[nombre] = { recorrido: rec, luzMeta: [fin.x - dFin.x * 1.2, 1.4, fin.z - dFin.y * 1.2] };
   }
+
+  hornear(grupo, (p, n, l, malla) => malla.userData.sombra?.(l, p) ?? 1);
 
   return {
     grupo,

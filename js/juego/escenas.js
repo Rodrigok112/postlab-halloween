@@ -4,7 +4,7 @@
 // final2: la puerta revienta, entra el ente agachado y te grita en la cara.
 // pasillo: te levantas, corres a la puerta izquierda, la cruzas y miras a los dos lados del cruce.
 
-const SENTADO = { pos: [0, 1.15, 0.02], mira: [0, 0.99, -1.15] };
+const SENTADO = { pos: [0, 1.15, 0.02], mira: [0, 1.08, -1.15] };
 const BOQUETE = [2, 1.51, 0.35];
 const SENTADO_GIRADO = { pos: [0.05, 1.17, 0.05], mira: [2, 1.45, 0.35] };
 const CRUCE = [-2.8, 1.6, 0.35];

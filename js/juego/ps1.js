@@ -212,3 +212,33 @@ export function crearMotor(contenedor) {
     },
   };
 }
+
+// Sombras horneadas: oscurece cada vértice de los materiales con luz de un grupo según fn(p, n, local, malla),
+// que recibe la posición y la normal en el mundo (y la posición local) y devuelve un factor de 0 a 1.
+// Se guarda como color de vértice: todas las mallas con luz del grupo lo reciben, para que ninguna se quede
+// sin ese atributo (sin él se verían negras).
+export function hornear(grupo, fn) {
+  const p = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const local = new THREE.Vector3();
+  const normalMundo = new THREE.Matrix3();
+  grupo.updateMatrixWorld(true);
+  grupo.traverse((o) => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (!mats.some((m) => m.defines && 'PS1_LUZ' in m.defines)) return;
+    const pos = o.geometry.attributes.position;
+    const nor = o.geometry.attributes.normal;
+    const col = new Float32Array(pos.count * 3);
+    normalMundo.getNormalMatrix(o.matrixWorld);
+    for (let i = 0; i < pos.count; i++) {
+      local.fromBufferAttribute(pos, i);
+      p.copy(local).applyMatrix4(o.matrixWorld);
+      if (nor) n.fromBufferAttribute(nor, i).applyMatrix3(normalMundo).normalize(); else n.set(0, 1, 0);
+      const f = Math.max(0, Math.min(1, fn(p, n, local, o)));
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f;
+    }
+    o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    for (const m of mats) if (m.defines && 'PS1_LUZ' in m.defines) { m.vertexColors = true; m.needsUpdate = true; }
+  });
+}

@@ -1,0 +1,9 @@
+Texturas reducidas (gris, 4 bits, recortadas y hechas repetibles) a partir de materiales CC0 de ambientCG
+(https://ambientcg.com), licencia CC0 1.0 (dominio público). El color se pone en js/juego/texturas.js.
+
+yeso.png      PaintedPlaster017
+hormigon.png  Concrete034
+baldosas.png  Tiles107
+metal.png     PaintedMetal004
+madera.png    Wood095
+moqueta.png   Carpet001

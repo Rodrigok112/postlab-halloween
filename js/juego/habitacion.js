@@ -3,7 +3,7 @@
 // Estética sucia (referencia del 22/10): pared en dos tonos con moho, baldosas, una bombilla en el techo,
 // sangre y cartas por el suelo que dicen que corras. La puerta del ente puede tener un boquete.
 
-import { THREE, materialPS1, materialBrillo, luces } from './ps1.js';
+import { THREE, materialPS1, materialBrillo, luces, hornear } from './ps1.js';
 import * as tex from './texturas.js';
 
 const ANCHO = 4;
@@ -16,7 +16,7 @@ const ZP = (PUERTA.z0 + PUERTA.z1) / 2;
 export const BOQUETE = [ANCHO / 2, PUERTA.alto * (1 - 18 / 64), ZP];
 
 export const POSES = {
-  sentado: { pos: [0, 1.15, 0.02], mira: [0, 0.99, -1.15] },
+  sentado: { pos: [0, 1.15, 0.02], mira: [0, 1.08, -1.15] },
   dePie: { pos: [0, 1.62, 0.1] },
   puertaDerecha: [2, 1.3, ZP],
   puertaIzquierda: [-2, 1.4, ZP],
@@ -26,11 +26,39 @@ export const POSES = {
 const BOMBILLA = [0, 2.3, -0.45];
 const L_BOMBILLA = 0, L_PANTALLA = 1, L_PASILLO = 2, L_OJOS = 3;
 
-// Plano subdividido cada medio metro (la luz por vértice y las texturas afines lo necesitan).
-function plano(w, h, material) {
-  const sw = Math.max(1, Math.round(w / 0.5));
-  const sh = Math.max(1, Math.round(h / 0.5));
+// Plano subdividido cada «paso» metros (la luz por vértice, las sombras horneadas y las texturas afines
+// lo necesitan).
+function plano(w, h, material, paso = 0.5) {
+  const sw = Math.max(1, Math.round(w / paso));
+  const sh = Math.max(1, Math.round(h / paso));
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h, sw, sh), material);
+}
+
+const smooth = (u) => { const k = Math.max(0, Math.min(1, u)); return k * k * (3 - 2 * k); };
+
+// Sombras horneadas de la habitación: rincones y aristas más oscuros, y sombra bajo la mesa, la silla y
+// lo que hay encima de la mesa.
+function sombra(p, n) {
+  let f = 1;
+  const dist = [];
+  if (Math.abs(n.x) < 0.5) dist.push(ANCHO / 2 - Math.abs(p.x));
+  if (Math.abs(n.z) < 0.5) dist.push(FONDO / 2 - Math.abs(p.z));
+  if (Math.abs(n.y) < 0.5) dist.push(p.y, ALTO - p.y);
+  for (const d of dist) f *= 1 - 0.5 * (1 - smooth(d / 0.6));
+  // Bajo la mesa (suelo, pared de detrás y patas), con el borde suave en el suelo.
+  if (p.y < 0.72) {
+    const dx = Math.max(Math.abs(p.x) - 0.8, 0);
+    const dz = Math.max(p.z + 0.9, 0);
+    f *= 1 - 0.55 * (1 - smooth(Math.hypot(dx, dz) / 0.35));
+  }
+  // Bajo la silla.
+  if (p.y < 0.45) f *= 1 - 0.45 * (1 - smooth(Math.hypot(p.x - 0.18, p.z - 0.35) / 0.45));
+  // Sobre la mesa: sombra de la caja del PC y del teclado.
+  if (p.y > 0.74 && p.y < 0.8) {
+    f *= 1 - 0.4 * (1 - smooth(Math.hypot(Math.max(Math.abs(p.x) - 0.23, 0), Math.max(Math.abs(p.z + 1.39) - 0.21, 0)) / 0.12));
+    f *= 1 - 0.3 * (1 - smooth(Math.hypot(Math.max(Math.abs(p.x) - 0.22, 0), Math.max(Math.abs(p.z + 1.0) - 0.08, 0)) / 0.06));
+  }
+  return f;
 }
 
 function caja(w, h, d, material) {
@@ -40,8 +68,14 @@ function caja(w, h, d, material) {
 // Pared lateral con el hueco de la puerta: dos tramos y el dintel.
 function paredConPuerta(x, mirandoA, material) {
   const g = new THREE.Group();
+  // Cada trozo toma su parte de la textura de la pared entera (si no, el dintel saldría con el zócalo).
   const tramo = (z0, z1, y0, y1) => {
     const m = plano(z1 - z0, y1 - y0, material);
+    const uv = m.geometry.attributes.uv;
+    const izq = mirandoA < 0 ? z0 : -z1; // la u crece con z en la pared derecha y con −z en la izquierda
+    for (let i = 0; i < uv.count; i++) {
+      uv.setXY(i, (izq + uv.getX(i) * (z1 - z0) + FONDO / 2) / FONDO, (y0 + uv.getY(i) * (y1 - y0)) / ALTO);
+    }
     m.position.set(x, (y0 + y1) / 2, (z0 + z1) / 2);
     m.rotation.y = mirandoA;
     g.add(m);
@@ -78,13 +112,13 @@ export function crearHabitacion(rng) {
   const pared = materialPS1({ map: tex.paredSucia(rng, [ANCHO / 1.3, 1]) });
   const paredLado = materialPS1({ map: tex.paredSucia(rng, [FONDO / 1.3, 1]) });
   const suelo = materialPS1({ map: tex.baldosas(rng, [ANCHO / 1.3, FONDO / 1.3]) });
+  const plasticoM = materialPS1({ map: tex.plastico(rng) });
   const techoM = materialPS1({ map: tex.techoSucio(rng, [2, 1.6]) });
   const madera = materialPS1({ map: tex.madera(rng) });
   const canto = materialPS1({ color: 0x2c2015 });
-  const mueble = materialPS1({ color: 0x8d8778 });
-  const metal = materialPS1({ color: 0x3e3c38 });
-  const plastico = materialPS1({ color: 0xcfc8b0 });
-  const silla = materialPS1({ color: 0x9a9483 });
+  const mueble = materialPS1({ map: tex.metalPintado(rng, '#6c7166') });
+  const metal = materialPS1({ map: tex.metalPintado(rng, '#3e3c38') });
+  const silla = materialPS1({ map: tex.metalPintado(rng, '#7d786a') });
   const mat = (map, extra = {}) => materialPS1({ map, transparent: true, alphaTest: 0.5, depthWrite: false, ...extra });
 
   // Paredes, suelo y techo.
@@ -93,7 +127,7 @@ export function crearHabitacion(rng) {
   const frente = plano(ANCHO, ALTO, pared);
   frente.position.set(0, ALTO / 2, FONDO / 2);
   frente.rotation.y = Math.PI;
-  const piso = plano(ANCHO, FONDO, suelo);
+  const piso = plano(ANCHO, FONDO, suelo, 0.25);
   piso.rotation.x = -Math.PI / 2;
   const cielo = plano(ANCHO, FONDO, techoM);
   cielo.rotation.x = Math.PI / 2;
@@ -102,33 +136,66 @@ export function crearHabitacion(rng) {
     paredConPuerta(ANCHO / 2, -Math.PI / 2, paredLado),
     paredConPuerta(-ANCHO / 2, Math.PI / 2, paredLado));
 
-  // Escritorio metálico pegado a la pared, CRT y silla.
-  const mesa = caja(1.6, 0.05, 0.75, mueble);
-  mesa.position.set(0, 0.74, -FONDO / 2 + 0.375);
+  // Escritorio metálico pegado a la pared, con la pintura gastada.
+  const mesa = caja(1.6, 0.04, 0.75, mueble);
+  mesa.position.set(0, 0.745, -FONDO / 2 + 0.375);
+  const cantoMesa = caja(1.62, 0.05, 0.02, metal);
+  cantoMesa.position.set(0, 0.735, -FONDO / 2 + 0.755);
   const faldon = caja(1.5, 0.45, 0.02, mueble);
   faldon.position.set(0, 0.5, -FONDO / 2 + 0.05);
-  grupo.add(mesa, faldon);
-  for (const [px, pz] of [[-0.75, -1.6], [0.75, -1.6], [-0.75, -0.95], [0.75, -0.95]]) {
+  grupo.add(mesa, cantoMesa, faldon);
+  for (const [px, pz] of [[-0.76, -1.6], [0.76, -1.6], [-0.76, -0.95], [0.76, -0.95]]) {
     const pata = caja(0.04, 0.72, 0.04, metal);
     pata.position.set(px, 0.36, pz);
     grupo.add(pata);
   }
-  const crt = caja(0.44, 0.4, 0.42, plastico);
-  crt.position.set(0, 0.98, -1.37);
-  const peana = caja(0.2, 0.04, 0.2, plastico);
-  peana.position.set(0, 0.78, -1.37);
-  const teclado = caja(0.42, 0.03, 0.14, plastico);
-  teclado.position.set(0, 0.78, -1.02);
+
+  // Ordenador viejo: caja horizontal con disquetera y CD, monitor CRT encima con su bisel y la parte de
+  // atrás estrecha, teclado con teclas, ratón con su cable, una taza y unos papeles.
+  const TAPA = 0.765;
+  const beige = plasticoM;
+  const cajaPC = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.42),
+    [beige, beige, beige, beige, materialPS1({ map: tex.frenteCaja(rng) }), beige]);
+  cajaPC.position.set(0, TAPA + 0.065, -1.39);
+  const peana = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.03, 8), plasticoM);
+  peana.position.set(0, TAPA + 0.145, -1.36);
+  const crtFrente = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.38, 0.12),
+    [beige, beige, beige, beige, materialPS1({ map: tex.frenteCRT(rng) }), beige]);
+  crtFrente.position.set(0, TAPA + 0.35, -1.24);
+  const crtAtras = caja(0.34, 0.3, 0.2, plasticoM);
+  crtAtras.position.set(0, TAPA + 0.35, -1.4);
+  const crtCola = caja(0.22, 0.2, 0.1, plasticoM);
+  crtCola.position.set(0, TAPA + 0.35, -1.55);
   const matPantalla = materialBrillo({ map: tex.pantalla('QUIERO\nTU VIDA') });
-  const vidrio = plano(0.34, 0.26, matPantalla);
-  vidrio.position.set(0, 0.99, -1.37 + 0.212);
+  // La pantalla ocupa el hueco negro del bisel (48 × 39 de 64 × 64 en la textura del frente).
+  const vidrio = plano(0.42 * 48 / 64, 0.38 * 39 / 64, matPantalla);
+  vidrio.position.set(0, TAPA + 0.35 + 0.38 * (0.5 - 26.5 / 64), -1.24 + 0.061);
+  const teclado = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.025, 0.15),
+    [beige, beige, materialPS1({ map: tex.teclas(rng) }), beige, beige, beige]);
+  teclado.position.set(0, TAPA + 0.016, -1.0);
+  teclado.rotation.x = 0.06;
+  const raton = caja(0.055, 0.03, 0.09, plasticoM);
+  raton.position.set(0.34, TAPA + 0.015, -0.98);
+  raton.rotation.y = -0.15;
+  const cableRaton = caja(0.006, 0.006, 0.32, metal);
+  cableRaton.position.set(0.3, TAPA + 0.004, -1.17);
+  cableRaton.rotation.y = 0.2;
+  const taza = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 7), materialPS1({ color: 0x8e8a7c }));
+  taza.position.set(-0.55, TAPA + 0.045, -1.05);
+  const papeles = plano(0.21, 0.28, materialPS1({ map: tex.papelEscrito('no\nrespondas\nnada') }));
+  papeles.rotation.x = -Math.PI / 2;
+  papeles.rotation.z = 0.4;
+  papeles.position.set(-0.45, TAPA + 0.002, -1.35);
+  grupo.add(cajaPC, peana, crtFrente, crtAtras, crtCola, vidrio, teclado, raton, cableRaton, taza, papeles);
+
+  // Silla de oficina metálica, un poco apartada.
   const asiento = caja(0.45, 0.05, 0.45, silla);
   asiento.position.set(0.15, 0.47, 0.25);
   asiento.rotation.y = 0.35;
   const respaldo = caja(0.45, 0.45, 0.04, silla);
   respaldo.position.set(0.22, 0.75, 0.46);
   respaldo.rotation.y = 0.35;
-  grupo.add(crt, peana, teclado, vidrio, asiento, respaldo);
+  grupo.add(asiento, respaldo);
   for (const [px, pz] of [[-0.05, 0.08], [0.36, 0.2], [-0.07, 0.48], [0.33, 0.6]]) {
     const pata = caja(0.03, 0.46, 0.03, metal);
     pata.position.set(px, 0.23, pz);
@@ -203,13 +270,15 @@ export function crearHabitacion(rng) {
   bombilla.position.set(...BOMBILLA);
   grupo.add(cable, bombilla);
 
+  hornear(grupo, sombra);
+
   luces.ambiente(0x15161a);
   const encender = (si) => {
     if (si) luces.punto(L_BOMBILLA, BOMBILLA, 0xffe7c0, 1.7, 4.6); else luces.apagar(L_BOMBILLA);
     matBombilla.color.set(si ? 0xfff1c8 : 0x2a2622);
   };
   encender(true);
-  luces.punto(L_PANTALLA, [0, 1.0, -0.95], 0xff2020, 0.9, 1.9);
+  luces.punto(L_PANTALLA, [0, 1.12, -0.95], 0xff2020, 0.9, 1.9);
   luces.punto(L_PASILLO, [-2.8, 2.1, ZP], 0xd8c070, 0.9, 3.2);
 
   return {
@@ -222,7 +291,7 @@ export function crearHabitacion(rng) {
       matPantalla.map.dispose();
       matPantalla.map = tex.pantalla(texto);
       matPantalla.needsUpdate = true;
-      if (texto) luces.punto(L_PANTALLA, [0, 1.0, -0.95], 0xff2020, 0.9, 1.9); else luces.apagar(L_PANTALLA);
+      if (texto) luces.punto(L_PANTALLA, [0, 1.12, -0.95], 0xff2020, 0.9, 1.9); else luces.apagar(L_PANTALLA);
     },
     setLuz: encender,
     // La puerta derecha pasa a tener el boquete.
