@@ -1,119 +1,138 @@
-// Cinemática de la habitación (5 × 3,3 m): claves de cámara, zoom y ente, y acciones con tiempo.
-// Común (como en la referencia del 22/10): QUIERO TU VIDA en el monitor → se apaga → silencio largo → un
-// golpe fuerte → la cámara gira hacia la puerta derecha, que tiene un boquete negro, y se acerca despacio
-// (zoom) → en el boquete, los dos ojos rojos, que parpadean, y «ahí estás, {nombre}» → entra una mano y se
-// agarra al borde → la puerta estalla en pedazos y el ente queda de pie en el marco, con mucho glitch.
-// final2: se te acerca y te grita en la cara.
-// pasillo: te levantas, corres a la puerta izquierda, la cruzas y miras a los dos lados del cruce.
+// Cinemática de la habitación (7 × 3,3 m; puerta del ente en x = +3,5, salida al pasillo en x = −3,5).
+// Común: QUIERO TU VIDA en el monitor → se apaga → silencio → mirando aún la pantalla se oye romperse la
+// puerta → giras a la derecha: hay un boquete y una mano sacada → la mano se mete → se abren dos ojos rojos
+// → «ahí estás, {nombre}» → la puerta estalla → un segundo sin nada → el ente sale despacio, de forma
+// dramática y nada humana, con glitch, y suena un grave «te encontré» (sin grito).
+// final2: una pausa y se lanza rápido a la cámara: susto y grito.
+// pasillo: corres a la puerta izquierda oyendo sus pasos, la cruzas, te giras y la cierras; golpes contra la
+// puerta mientras miras a los dos lados del cruce.
 
 const SENTADO = { pos: [0, 1.15, 0.02], mira: [0, 1.08, -1.15] };
-const PUERTA = [2.5, 1.45, 0.35];
-const SENTADO_GIRADO = { pos: [0.05, 1.17, 0.05], mira: PUERTA };
-const CARA_EN_MARCO = [1.9, 1.9, 0.35];
-const CRUCE = [-3.3, 1.6, 0.35];
-const ESTALLA = 14.2;
+const PUERTA_D = [3.5, 1.45, 0.35];
+const SENTADO_GIRADO = { pos: [0.05, 1.17, 0.05], mira: PUERTA_D };
+const CARA_EN_MARCO = [2.65, 2.25, 0.35];
+const CRUCE = [-4.3, 1.6, 0.35];
+const ESTALLA = 13.6;
+const SALE = 14.6;
+const LANZA = 18.8;
 
 const CAMARA_COMUN = [
   { t: 0, ...SENTADO },
-  { t: 7.25, ...SENTADO },
-  { t: 8.4, ...SENTADO_GIRADO },
-  { t: ESTALLA, ...SENTADO_GIRADO },
-  { t: ESTALLA + 0.4, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
+  { t: 6.8, ...SENTADO },
+  { t: 8.0, ...SENTADO_GIRADO },
+  { t: SALE, ...SENTADO_GIRADO },
+  { t: 16.4, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
 ];
 
 export const CAMARA = {
   final2: [
     ...CAMARA_COMUN,
-    { t: 16.2, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
-    { t: 17.0, pos: [0.1, 1.17, 0.08], mira: [1.6, 1.7, 0.25] },
-    { t: 17.8, pos: [0.05, 1.15, 0.06], mira: [0.5, 1.5, 0.1] },
+    { t: LANZA, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
+    { t: LANZA + 0.35, pos: [0.05, 1.15, 0.06], mira: [0.5, 1.5, 0.1] },
   ],
   pasillo: [
     ...CAMARA_COMUN,
-    { t: 15.6, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
-    { t: 16.3, pos: [-0.3, 1.6, 0.25], mira: [-2.5, 1.45, 0.35] },
-    { t: 17.2, pos: [-1.9, 1.6, 0.35], mira: [-4.1, 1.5, 0.35] },
-    { t: 17.9, pos: CRUCE, mira: [-4.5, 1.55, 0.35] },
+    { t: 18.2, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
+    { t: 18.9, pos: [-0.3, 1.6, 0.25], mira: [-3.5, 1.45, 0.35] },
+    { t: 20.3, pos: [-2.9, 1.6, 0.35], mira: [-5.1, 1.5, 0.35] },
+    { t: 20.8, pos: CRUCE, mira: [-5.5, 1.55, 0.35] },
+    // Se gira hacia la habitación y cierra la puerta (al fondo, el ente viniendo).
+    { t: 21.3, pos: CRUCE, mira: [-2.0, 1.5, 0.35] },
+    { t: 21.9, pos: CRUCE, mira: [-2.0, 1.5, 0.35] },
+    { t: 22.4, pos: CRUCE, mira: [-5.5, 1.55, 0.35] },
     // Mira a la izquierda (+z) y a la derecha (−z) y vuelve al frente.
-    { t: 18.7, pos: CRUCE, mira: [-3.3, 1.55, 3] },
-    { t: 19.6, pos: CRUCE, mira: [-3.3, 1.55, -2.3] },
-    { t: 20.2, pos: CRUCE, mira: [-4.5, 1.55, 0.35] },
+    { t: 23.1, pos: CRUCE, mira: [-4.3, 1.55, 3] },
+    { t: 23.8, pos: CRUCE, mira: [-4.3, 1.55, -2.3] },
+    { t: 24.3, pos: CRUCE, mira: [-5.5, 1.55, 0.35] },
   ],
 };
 
-// Zoom (campo de visión vertical, grados): se cierra despacio sobre la puerta y se abre de golpe al estallar.
+// Zoom (campo de visión vertical, grados): se cierra despacio sobre la puerta y se abre al estallar.
 export const ZOOM = [
   { t: 0, v: 68 },
-  { t: 8.4, v: 68 },
-  { t: ESTALLA - 0.05, v: 40 },
-  { t: ESTALLA, v: 60 },
-  { t: 16.4, v: 68 },
+  { t: 8.0, v: 68 },
+  { t: ESTALLA - 0.05, v: 44 },
+  // Sale cerrado sobre el marco, para que se vea bien; luego se abre.
+  { t: ESTALLA, v: 50 },
+  { t: 17.5, v: 50 },
+  { t: LANZA, v: 68 },
 ];
 
-// Ente: pos = pies, mira = hacia dónde mira (solo se usa x y z), agachado = inclinación en radianes.
+// Ente: pos = pies, mira = hacia dónde mira (solo x y z), agachado = inclinación (rad),
+// abre = brazos abiertos agarrando el marco (0 a 1).
 // Asomado: detrás de la puerta, inclinado para que los ojos queden justo detrás del boquete
 // (ASOMADO_LEJOS: metros que los ojos quedan por delante de los pies con esa inclinación).
-const ASOMADO_LEJOS = 1.27;
-const ASOMADO = { pos: [2.62 + ASOMADO_LEJOS, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.52 };
-// En el marco, tras estallar la puerta: encorvado bajo el dintel, con la cabeza ya dentro.
-const EN_MARCO = { pos: [2.95, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.0 };
+const ASOMADO_LEJOS = 1.46;
+const ASOMADO = { pos: [3.62 + ASOMADO_LEJOS, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.73, abre: 0 };
+// Salida: primero los brazos, que se abren y agarran el marco; el cuerpo detrás, a tirones; al final, en el
+// marco, encorvado bajo el dintel con la cabeza ya dentro.
+const SALIDA = [
+  { t: SALE, pos: [ASOMADO.pos[0] + 0.3, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.5, abre: 0 },
+  { t: 15.8, pos: [4.5, 0, 0.35], mira: [0, 0, 0.5], agachado: 1.15, abre: 1 },
+  { t: 17.0, pos: [4.1, 0, 0.3], mira: [0, 0, 0.1], agachado: 1.05, abre: 0.7 },
+  { t: 18.0, pos: [3.85, 0, 0.35], mira: [0, 0, 0.35], agachado: 0.95, abre: 0.2 },
+];
 
 export const ENTE = {
   final2: [
     { t: 0, ...ASOMADO },
-    { t: ESTALLA, ...ASOMADO },
-    { t: ESTALLA, ...EN_MARCO },
-    { t: 16.2, ...EN_MARCO },
-    { t: 17.0, pos: [2.3, 0, 0.25], mira: [0, 0, 0.1], agachado: 1.2 },
-    // Se dobla hasta tu cara: los ojos quedan a unos 45 cm de ti, algo por encima.
-    { t: 17.7, pos: [1.7, 0, 0.12], mira: [0, 0, 0.08], agachado: 1.5 },
+    ...SALIDA,
+    // Se lanza: en un tercio de segundo, de la puerta a tu cara.
+    // Con 1,75 rad los ojos quedan a 1,49 m y 1,46 m por delante: a unos 40 cm de tu cara.
+    { t: LANZA + 0.35, pos: [1.85, 0, 0.12], mira: [0, 0, 0.08], agachado: 1.75, abre: 0 },
   ],
   pasillo: [
     { t: 0, ...ASOMADO },
-    { t: ESTALLA, ...ASOMADO },
-    { t: ESTALLA, ...EN_MARCO },
-    { t: 16.3, ...EN_MARCO },
-    // Mientras huyes, entra detrás de ti.
-    { t: 18.5, pos: [1.6, 0, 0.3], mira: [-2.5, 0, 0.35], agachado: 0.7 },
+    ...SALIDA,
+    // Te sigue mientras huyes: lo ves venir al cerrar la puerta.
+    { t: 21.3, pos: [-0.2, 0, 0.35], mira: [-3.5, 0, 0.35], agachado: 0.95, abre: 0.3 },
   ],
 };
 
-export const DURACION = { final2: 18.6, pasillo: 20.3 };
+export const DURACION = { final2: 19.9, pasillo: 24.3 };
 
-// Tras estallar, el ente entra con muchos más fotogramas rotos durante este tiempo.
-export const ENTRADA_GLITCH_S = 2.0;
+// Al salir, el ente tiene muchos más fotogramas rotos durante este tiempo.
+export const ENTRADA_GLITCH_S = 3.0;
 
-// La mano: entra despacio por el boquete (posición de la muñeca, x) y se agarra al borde.
-export const MANO = { fuera: 3.1, dentro: 2.0, entraDesde: 12.0, entraHasta: 13.6 };
+// La mano: ya está fuera del boquete cuando giras (dentro de la habitación) y se retira despacio.
+// x = posición de la muñeca.
+export const MANO = { fuera: 4.1, dentro: 3.0, saleDesde: 9.0, saleHasta: 10.2 };
 
 // Acciones puntuales: { t, que, valor }.
 const ACCIONES_COMUNES = [
   { t: 0, que: 'pantalla', valor: 'QUIERO\nTU VIDA' },
   { t: 3.0, que: 'pantalla', valor: null },
-  { t: 7.0, que: 'boquete' },
-  { t: 9.0, que: 'ojos' },
-  { t: 9.8, que: 'parpadeo' },
-  { t: 10.3, que: 'dialogo' },
-  { t: 12.0, que: 'callar' },
-  { t: MANO.entraDesde, que: 'mano' },
+  { t: 6.0, que: 'rompe' },
+  { t: 10.6, que: 'ojos' },
+  { t: 11.3, que: 'dialogo' },
+  { t: 13.0, que: 'callar' },
   { t: ESTALLA, que: 'explota' },
+  { t: SALE, que: 'sale' },
+  { t: 15.2, que: 'encontrado' },
 ];
 
 export const ACCIONES = {
   final2: [
     ...ACCIONES_COMUNES,
-    { t: 17.4, que: 'boca' },
-    { t: 17.6, que: 'grito' },
+    { t: LANZA, que: 'lanza' },
+    { t: LANZA + 0.15, que: 'grito' },
   ],
   pasillo: [
     ...ACCIONES_COMUNES,
     // La puerta izquierda se abre antes de girarte, para que la hoja no te tape el plano al abrirse.
-    { t: 15.5, que: 'abrePuerta' },
-    { t: 16.0, que: 'paso' },
-    { t: 16.35, que: 'paso' },
-    { t: 16.7, que: 'paso' },
-    { t: 17.05, que: 'paso' },
-    { t: 17.4, que: 'paso' },
-    { t: 17.75, que: 'paso' },
+    { t: 17.9, que: 'abrePuerta' },
+    { t: 18.4, que: 'pasoEnte' },
+    { t: 18.95, que: 'paso' },
+    { t: 19.0, que: 'pasoEnte' },
+    { t: 19.3, que: 'paso' },
+    { t: 19.6, que: 'pasoEnte' },
+    { t: 19.65, que: 'paso' },
+    { t: 20.0, que: 'paso' },
+    { t: 20.2, que: 'pasoEnte' },
+    { t: 20.35, que: 'paso' },
+    { t: 20.7, que: 'paso' },
+    { t: 20.8, que: 'pasoEnte' },
+    { t: 21.3, que: 'cierra' },
+    { t: 21.9, que: 'golpes' },
   ],
 };

@@ -1,5 +1,5 @@
-// La oficina del croquis, algo más ancha: 5 × 3,3 m, techo de 2,6 m. x a la derecha, y arriba, z hacia la cámara.
-// Pared del fondo en z = -1,65 (escritorio pegado), puerta del ente en x = +2,5, salida al pasillo en x = -2,5.
+// La oficina del croquis, más ancha: 7 × 3,3 m, techo de 2,6 m (las puertas lejos, para que dé tiempo a correr). x a la derecha, y arriba, z hacia la cámara.
+// Pared del fondo en z = -1,65 (escritorio pegado), puerta del ente en x = +3,5, salida al pasillo en x = -3,5.
 // Estética sucia (referencia del 22/10): pared en dos tonos con moho, baldosas, una bombilla en el techo,
 // sangre y cartas por el suelo que dicen que corras. La puerta del ente puede tener un boquete.
 
@@ -7,7 +7,7 @@ import { THREE, materialPS1, materialBrillo, luces, hornear } from './ps1.js';
 import * as tex from './texturas.js';
 import { createRng } from '../glitch.js';
 
-const ANCHO = 5;
+const ANCHO = 7;
 const FONDO = 3.3;
 const ALTO = 2.6;
 const PUERTA = { z0: -0.1, z1: 0.8, alto: 2.1 };
@@ -275,19 +275,21 @@ export function crearHabitacion(rng) {
 
   luces.ambiente(0x15161a);
   const encender = (si) => {
-    if (si) luces.punto(L_BOMBILLA, BOMBILLA, 0xffe7c0, 1.7, 4.6); else luces.apagar(L_BOMBILLA);
+    if (si) luces.punto(L_BOMBILLA, BOMBILLA, 0xffe7c0, 1.9, 6.0); else luces.apagar(L_BOMBILLA);
     matBombilla.color.set(si ? 0xfff1c8 : 0x2a2622);
   };
   encender(true);
   luces.punto(L_PANTALLA, [0, 1.12, -0.95], 0xff2020, 0.9, 1.9);
   luces.punto(L_PASILLO, [-ANCHO / 2 - 0.8, 2.1, ZP], 0xd8c070, 0.9, 3.2);
 
-  // Trozos de la puerta derecha cuando estalla: salen hacia dentro, giran, caen y se quedan en el suelo.
+  // Trozos de una puerta cuando estalla: salen hacia −x (dentro de la habitación desde la derecha; hacia el
+  // cruce desde la izquierda), giran, caen y se quedan en el suelo.
   const trozos = [];
-  const estallar = () => {
-    puertaRota.visible = false;
-    puertaDerecha.visible = false;
-    const azar = createRng(4242);
+  const estallar = (lado = 'derecha') => {
+    const x0 = lado === 'derecha' ? ANCHO / 2 - 0.05 : -ANCHO / 2 - 0.05;
+    const xMin = lado === 'derecha' ? -ANCHO / 2 + 0.1 : -ANCHO / 2 - 1.5;
+    if (lado === 'derecha') { puertaRota.visible = false; puertaDerecha.visible = false; } else puertaIzquierda.visible = false;
+    const azar = createRng(lado === 'derecha' ? 4242 : 4343 + trozos.length);
     for (let i = 0; i < 16; i++) {
       const alto = 0.15 + azar() * 0.55;
       const ancho = 0.08 + azar() * 0.22;
@@ -295,13 +297,15 @@ export function crearHabitacion(rng) {
       // Sus materiales ya tienen sombras horneadas (color de vértice): sin este atributo saldrían negros.
       geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
       const m = new THREE.Mesh(geo, i % 5 ? madera : canto);
-      m.position.set(ANCHO / 2 - 0.05, 0.2 + azar() * 1.8, PUERTA.z0 + azar() * (PUERTA.z1 - PUERTA.z0));
+      m.position.set(x0, 0.2 + azar() * 1.8, PUERTA.z0 + azar() * (PUERTA.z1 - PUERTA.z0));
       m.rotation.set(azar() * 3, azar() * 3, azar() * 3);
-      m.userData = {
+      m.userData.lado = lado;
+      Object.assign(m.userData, {
         v: new THREE.Vector3(-(2.2 + azar() * 3.5), 0.8 + azar() * 2.8, (azar() - 0.5) * 3),
         w: new THREE.Vector3((azar() - 0.5) * 14, (azar() - 0.5) * 14, (azar() - 0.5) * 14),
         suelo: Math.min(alto, ancho) / 2,
-      };
+        xMin,
+      });
       grupo.add(m);
       trozos.push(m);
     }
@@ -317,7 +321,7 @@ export function crearHabitacion(rng) {
       m.rotation.z += d.w.z * dt;
       // Contra las paredes de la habitación rebota; en el suelo se queda tumbado.
       if (Math.abs(m.position.z) > FONDO / 2 - 0.1) d.v.z *= -0.4;
-      if (m.position.x < -ANCHO / 2 + 0.1) d.v.x *= -0.4;
+      if (m.position.x < d.xMin) { m.position.x = d.xMin; d.v.x *= -0.4; }
       if (m.position.y <= d.suelo) {
         m.position.y = d.suelo;
         m.rotation.x = Math.PI / 2;
@@ -333,6 +337,20 @@ export function crearHabitacion(rng) {
     puertaRota,
     estallar,
     actualizarTrozos,
+    izquierdaRota: () => !puertaIzquierda.visible,
+    // Vuelve a poner la puerta izquierda, cerrada y entera, y quita sus trozos (para «repetir»).
+    rehacerIzquierda() {
+      for (let i = trozos.length - 1; i >= 0; i--) {
+        if (trozos[i].userData.lado !== 'izquierda') continue;
+        grupo.remove(trozos[i]);
+        trozos[i].geometry.dispose();
+        trozos.splice(i, 1);
+      }
+      puertaIzquierda.visible = true;
+      puertaIzquierda.rotation.y = 0;
+    },
+    // La puerta izquierda (cerrada) tiembla con un golpe: k de 0 a 1.
+    temblarIzquierda(k) { puertaIzquierda.rotation.y = (Math.random() - 0.5) * 0.06 * k; },
     puertaIzquierda,
     // null = pantalla apagada.
     setPantalla(texto) {

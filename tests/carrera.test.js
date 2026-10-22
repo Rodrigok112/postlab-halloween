@@ -1,73 +1,71 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createCarrera, tap, update, distancia, PASO_M, LARGO_M, VENTAJA_M, DT_MAX_S,
+  createCarrera, tap, update, soltar, distancia, PASO_M, LARGO_M, PUERTA_M, DT_MAX_S,
 } from '../js/juego/carrera.js';
 import { crearRecorrido, RUTAS } from '../js/juego/recorrido.js';
 
-// Simula un ritmo constante de toques durante como mucho maxS segundos.
-function simular(toquesPorSegundo, maxS = 90, largo = LARGO_M) {
+const IZQ = crearRecorrido(RUTAS.izquierda).largo;
+const DER = crearRecorrido(RUTAS.derecha).largo;
+
+// Ritmo constante de toques. A PUERTA_M el ente revienta la puerta del cruce y sale desde ahí (d = 0).
+function simular(toquesPorSegundo, largo, maxS = 120) {
   let c = createCarrera(largo);
   const dt = 1 / 120;
   let siguiente = 0;
-  let t = 0;
-  while (c.estado === 'corriendo' && t < maxS) {
-    t += dt;
+  for (let t = 0; c.estado === 'corriendo' && t < maxS; t += dt) {
     if (t >= siguiente) { c = tap(c); siguiente += 1 / toquesPorSegundo; }
+    if (!c.suelto && c.jugador >= PUERTA_M) c = soltar(c, 0);
     c = update(c, dt);
   }
-  return { c, t };
+  return c;
 }
 
-test('estado inicial: el ente empieza detrás con ventaja', () => {
-  assert.deepEqual(createCarrera(), { jugador: 0, ente: -VENTAJA_M, toques: 0, t: 0, estado: 'corriendo', largo: LARGO_M });
-  assert.equal(distancia(createCarrera()), VENTAJA_M);
+test('al empezar, el ente sigue encerrado tras la puerta: no se mueve ni atrapa', () => {
+  let c = createCarrera(IZQ);
+  assert.equal(c.suelto, false);
+  for (let i = 0; i < 100; i++) c = update(c, 0.1);
+  assert.equal(c.estado, 'corriendo');
+  assert.equal(distancia(c), Infinity);
+});
+
+test('soltar coloca al ente donde revienta la puerta', () => {
+  const c = soltar({ ...createCarrera(IZQ), jugador: 6 }, 0);
+  assert.equal(c.suelto, true);
+  assert.equal(distancia(c), 6);
 });
 
 test('cada toque avanza un paso y cuenta una vez', () => {
-  const c = tap(tap(createCarrera()));
+  const c = tap(tap(createCarrera(IZQ)));
   assert.equal(c.toques, 2);
   assert.ok(Math.abs(c.jugador - 2 * PASO_M) < 1e-9);
 });
 
-test('muchísimos toques seguidos terminan en la meta sin pasarse', () => {
-  let c = createCarrera();
-  for (let i = 0; i < 200; i++) c = tap(c);
-  assert.equal(c.estado, 'escapado');
-  assert.equal(c.jugador, LARGO_M);
-  assert.equal(c.toques, Math.ceil(LARGO_M / PASO_M));
-});
-
-test('a 3,5 toques por segundo te atrapa', () => {
-  assert.equal(simular(3.5).c.estado, 'atrapado');
-});
-
 test('por defecto el largo es el del camino izquierdo', () => {
-  assert.equal(LARGO_M, crearRecorrido(RUTAS.izquierda).largo);
+  assert.equal(LARGO_M, IZQ);
 });
 
-test('izquierda: a 5 toques por segundo escapas en unos 30 s', () => {
-  const { c, t } = simular(5, 90, crearRecorrido(RUTAS.izquierda).largo);
-  assert.equal(c.estado, 'escapado');
-  assert.ok(t > 27 && t < 33, `tardó ${t.toFixed(1)} s`);
+test('difícil (solo los rápidos): por la izquierda, a 5,3 toques/s te atrapa y a 6,2 escapas', () => {
+  assert.equal(simular(5.3, IZQ).estado, 'atrapado');
+  assert.equal(simular(6.2, IZQ).estado, 'escapado');
 });
 
-test('derecha: a 5 toques por segundo escapas en unos 50 s', () => {
-  const { c, t } = simular(5, 90, crearRecorrido(RUTAS.derecha).largo);
-  assert.equal(c.estado, 'escapado');
-  assert.ok(t > 47 && t < 53, `tardó ${t.toFixed(1)} s`);
+test('por la derecha, más larga, a 5,6 toques/s te atrapa y a 6,3 escapas', () => {
+  assert.equal(simular(5.6, DER).estado, 'atrapado');
+  assert.equal(simular(6.3, DER).estado, 'escapado');
 });
 
 test('un salto de tiempo enorme (pestaña en segundo plano) avanza como mucho DT_MAX_S', () => {
-  const c0 = update(createCarrera(), 5);
+  const c0 = update(soltar(createCarrera(IZQ), -6), 5);
   const c1 = update(c0, 30);
   assert.ok(c1.t - c0.t <= DT_MAX_S + 1e-9);
   assert.equal(c1.estado, 'corriendo');
 });
 
 test('fuera de «corriendo» nada cambia', () => {
-  let c = createCarrera();
-  for (let i = 0; i < 200; i++) c = tap(c);
+  let c = createCarrera(IZQ);
+  for (let i = 0; i < 400; i++) c = tap(c);
+  assert.equal(c.estado, 'escapado');
   assert.equal(tap(c), c);
   assert.equal(update(c, 0.05), c);
 });

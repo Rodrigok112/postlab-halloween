@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CAMARA, ENTE, ACCIONES, DURACION, ZOOM, MANO } from '../js/juego/escenas.js';
-import { valorEn } from '../js/juego/linea.js';
+import { muestrear, valorEn } from '../js/juego/linea.js';
 
 const CAMINOS = ['final2', 'pasillo'];
 const cuando = (camino, que) => ACCIONES[camino].find((a) => a.que === que)?.t;
+// Hacia dónde mira la cámara en t: el monitor está en −z; la puerta del ente en +x; la del pasillo en −x.
+const mira = (camino, t) => muestrear(CAMARA[camino], t).mira;
 
 test('las claves y acciones van en orden y caben en la duración', () => {
   for (const c of CAMINOS) {
@@ -15,36 +17,59 @@ test('las claves y acciones van en orden y caben en la duración', () => {
   }
 });
 
-test('silencio largo tras apagarse el monitor, un golpe, y luego boquete, ojos y «ahí estás»', () => {
+test('mirando la pantalla se oye romperse la puerta; luego giras y la mano ya está fuera', () => {
   for (const c of CAMINOS) {
+    const rompe = cuando(c, 'rompe');
     const apagado = ACCIONES[c].find((a) => a.que === 'pantalla' && a.valor === null).t;
-    const boquete = cuando(c, 'boquete');
-    assert.ok(boquete - apagado >= 3, `${c}: silencio de ${boquete - apagado} s`);
-    assert.equal(ACCIONES[c].filter((a) => a.t > apagado && a.t < boquete).length, 0, 'nada durante el silencio');
-    assert.ok(boquete < cuando(c, 'ojos') && cuando(c, 'ojos') < cuando(c, 'dialogo'));
+    assert.ok(rompe - apagado >= 2.5, 'silencio largo antes');
+    assert.ok(mira(c, rompe)[2] < -1, 'aún mira al monitor');
+    const girado = CAMARA[c].find((k) => k.mira[0] > 3).t;
+    assert.ok(girado > rompe, 'gira después del golpe');
+    assert.ok(MANO.saleDesde > girado, 'al girar, la mano sigue fuera');
   }
 });
 
-test('como en la referencia: primero los ojos (y «ahí estás»), luego la mano, luego la puerta estalla', () => {
+test('la mano se mete, se abren los ojos y habla; luego estalla la puerta', () => {
   for (const c of CAMINOS) {
+    assert.ok(MANO.saleHasta < cuando(c, 'ojos'));
     assert.ok(cuando(c, 'ojos') < cuando(c, 'dialogo'));
-    assert.ok(cuando(c, 'callar') <= MANO.entraDesde, `${c}: la mano entra cuando ya ha hablado`);
-    assert.ok(MANO.entraDesde === cuando(c, 'mano') && MANO.entraHasta < cuando(c, 'explota'));
+    assert.ok(cuando(c, 'callar') <= cuando(c, 'explota'));
+  }
+});
+
+test('tras estallar no sale nada durante un segundo; luego sale despacio y suena grave, sin gritar', () => {
+  for (const c of CAMINOS) {
+    const explota = cuando(c, 'explota');
+    const sale = cuando(c, 'sale');
+    assert.ok(sale - explota >= 1);
+    assert.ok(cuando(c, 'encontrado') > sale);
+    const llega = ENTE[c].find((k) => k.t > sale && k.pos[0] < 4).t;
+    assert.ok(llega - sale >= 2.5, `sale en ${llega - sale} s`);
+    const grito = cuando(c, 'grito');
+    assert.ok(grito === undefined || grito > llega);
   }
 });
 
 test('la cámara se acerca despacio a la puerta (zoom) y vuelve a abrirse al estallar', () => {
-  const fov = (t) => valorEn(ZOOM, t);
-  assert.ok(fov(cuando('final2', 'explota') - 0.1) < fov(8.4) - 15, 'zoom hacia la puerta');
-  assert.ok(fov(cuando('final2', 'explota')) > fov(cuando('final2', 'explota') - 0.1), 'se abre al estallar');
+  const explota = cuando('final2', 'explota');
+  assert.ok(valorEn(ZOOM, explota - 0.1) < valorEn(ZOOM, 8.5) - 15);
+  assert.ok(valorEn(ZOOM, explota) > valorEn(ZOOM, explota - 0.1));
 });
 
-test('final 2: tras estallar, el grito llega al final', () => {
-  assert.ok(cuando('final2', 'grito') > cuando('final2', 'explota'));
+test('final 2: tras salir, una pausa y se lanza rápido a la cámara: susto y grito', () => {
+  const lanza = cuando('final2', 'lanza');
+  const quieto = ENTE.final2.filter((k) => k.t < lanza).at(-1).t;
+  assert.ok(lanza - quieto >= 0.4, 'pausa antes');
+  const encima = ENTE.final2.find((k) => k.t > lanza);
+  assert.ok(encima.t - lanza <= 0.5 && encima.pos[0] < 2, 'rápido y hasta tu cara');
+  assert.ok(cuando('final2', 'grito') >= lanza);
 });
 
-test('pasillo: la puerta izquierda se abre del todo y la escena acaba en el cruce, lista para elegir', () => {
-  assert.ok(cuando('pasillo', 'abrePuerta') > cuando('pasillo', 'explota'));
-  const ultima = CAMARA.pasillo.at(-1);
-  assert.ok(ultima.pos[0] < -2.5, 'la cámara termina al otro lado de la puerta');
+test('pasillo: corres, cruzas, cierras la puerta, golpes, y acabas en el cruce listo para elegir', () => {
+  const cierra = cuando('pasillo', 'cierra');
+  assert.ok(muestrear(CAMARA.pasillo, cierra).pos[0] < -3.6, 'ya al otro lado de la puerta');
+  assert.ok(mira('pasillo', cierra)[0] > -4, 'mirando hacia la habitación al cerrar');
+  assert.ok(cuando('pasillo', 'golpes') > cierra);
+  assert.ok(ACCIONES.pasillo.some((a) => a.que === 'pasoEnte' && a.t < cierra), 'se le oye acercarse');
+  assert.ok(CAMARA.pasillo.at(-1).pos[0] < -4, 'termina en el cruce');
 });

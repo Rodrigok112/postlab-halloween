@@ -1,4 +1,4 @@
-// El ente: una máquina que intenta parecer humana. Unos 2,6 m, flaco y encorvado.
+// El ente: una máquina que intenta parecer humana. Unos 3 m, flaco y encorvado.
 // Armazón de barras con articulaciones de anillo, columna de discos y costillas como un radiador; piernas
 // con las rodillas al revés; brazos con tres codos hasta las rodillas y dedos de pinza; trozos de piel
 // humana cosida encima (muslos, brazos, pecho) y una cara de piel puesta como máscara, con sangre, sobre un
@@ -53,10 +53,13 @@ export function crearEnte() {
   const boca = materialBrillo({ color: 0x1a0204 });
   const ojo = materialBrillo({ color: 0xff1a1a, fog: false });
   const grupo = new THREE.Group();
+  const cuerpo = new THREE.Group();
+  cuerpo.scale.setScalar(1.15); // más alto que una persona: casi 3 m
+  grupo.add(cuerpo);
 
   // ---------- Piernas con las rodillas al revés: muslo, espinilla, empeine y pie ----------
   const piernas = [-0.11, 0.11].map((x) => {
-    const muslo = segmento(grupo, [x, CADERA, 0], 0.5, 0.035, 0.03, metal, oscuroM);
+    const muslo = segmento(cuerpo, [x, CADERA, 0], 0.5, 0.035, 0.03, metal, oscuroM);
     manga(muslo, 0.3, 0.06, -0.05, piel, rng);
     const rodilla = segmento(muslo, [0, -0.5, 0], 0.5, 0.03, 0.022, metal, oscuroM);
     const tobillo = segmento(rodilla, [0, -0.5, 0], 0.3, 0.022, 0.018, oscuroM, oscuroM);
@@ -70,12 +73,12 @@ export function crearEnte() {
   });
   const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.14), metal);
   pelvis.position.y = CADERA;
-  grupo.add(pelvis);
+  cuerpo.add(pelvis);
 
   // ---------- Parte de arriba (pivota en la cadera) ----------
   const arriba = new THREE.Group();
   arriba.position.y = CADERA;
-  grupo.add(arriba);
+  cuerpo.add(arriba);
 
   // Columna de discos curvada hacia atrás y costillas de radiador delante.
   for (let i = 0; i < 10; i++) {
@@ -233,15 +236,18 @@ export function crearEnte() {
   const colores = [metal, oscuroM, piel, cara, diente].map((m) => [m, m.color.getHex()]);
   let inclinacion = 0;
   let alcance = 0;
+  let abierto = 0;
 
   // ---------- Glitch (lo llama quien lo anima, una vez por fotograma de 12 fps) ----------
   let roto = 0; // fotogramas que quedan de pose rota
   let cabezaHasta = 0;
   const posturaBrazos = () => {
     for (const b of brazos) {
-      b.brazo.rotation.x = -1.1 * alcance + b.extraX;
-      b.codo1.rotation.x = -0.2 - 0.4 * alcance + b.extraCodo;
-      b.codo2.rotation.x = -0.25 - 0.3 * alcance;
+      // Abierto: los brazos se separan y suben, con los codos doblados, como agarrando el marco.
+      b.brazo.rotation.x = -1.1 * alcance - 0.5 * abierto + b.extraX;
+      b.brazo.rotation.z = b.s * (0.12 + 1.25 * abierto);
+      b.codo1.rotation.x = -0.2 - 0.4 * alcance - 0.9 * abierto + b.extraCodo;
+      b.codo2.rotation.x = -0.25 - 0.3 * alcance - 0.6 * abierto;
     }
   };
   for (const b of brazos) { b.extraX = 0; b.extraCodo = 0; }
@@ -271,6 +277,10 @@ export function crearEnte() {
     },
     // Brazos hacia delante (para agarrar): 0 colgando, 1 extendidos.
     alcanzar(u) { alcance = u; posturaBrazos(); },
+    // Brazos abiertos agarrando el marco de la puerta: 0 a 1.
+    abrir(u) { abierto = u; posturaBrazos(); },
+    // Gira la cabeza hacia un lado (rad), despacio si quien llama lo anima así.
+    cabezaHacia(rad) { cabeza.rotation.y = rad; },
     // 0 cerrada; 1 desencajada hasta el pecho.
     boca(u) {
       const k = Math.round(u * 4) / 4;
@@ -294,7 +304,7 @@ export function crearEnte() {
     tic(rnd, nivel = 1) {
       const conGlitch = nivel > 0;
       for (const p of pelos) p.rotation.x = (rnd() - 0.5) * 0.3;
-      brazos[1].brazo.rotation.z = 0.12 + (rnd() - 0.5) * 0.12;
+      brazos[1].brazo.rotation.z = brazos[1].s * (0.12 + 1.25 * abierto) + (rnd() - 0.5) * 0.12;
       brazos[1].codo2.rotation.z = (rnd() - 0.5) * 0.3;
       cabezaHasta--;
       if (cabezaHasta <= 0) giro.rotation.z = 0;
@@ -305,12 +315,12 @@ export function crearEnte() {
         for (const b of brazos) { b.brazo.rotation.x = (rnd() - 0.5) * 3; b.codo1.rotation.x = (rnd() - 0.5) * 3; }
         arriba.rotation.x = inclinacion + (rnd() - 0.5) * 0.5;
         arriba.position.x = (rnd() - 0.5) * 0.25;
-        grupo.scale.y = 0.85 + rnd() * 0.3;
+        cuerpo.scale.y = 1.15 * (0.85 + rnd() * 0.3);
         return true;
       }
       arriba.rotation.x = inclinacion;
       arriba.position.x = 0;
-      grupo.scale.y = 1;
+      cuerpo.scale.y = 1.15;
       posturaBrazos();
       return false;
     },

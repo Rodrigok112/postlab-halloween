@@ -16,33 +16,22 @@ function simular(vel) {
   return a;
 }
 
-test('es rápida (al menos 6,5 m/s) y sale de lejos, para que se vea venir', () => {
-  assert.ok(ACECHO.vel >= 6.5);
+test('la masa está al fondo desde que empiezas a correr, lejos, para que se la vea venir', () => {
   assert.ok(ACECHO.distanciaM >= 35);
-});
-
-test('espera escondido hasta que el jugador lleva unos metros', () => {
-  const a = actualizarAcecho(crearAcecho(ESQUINA), ACECHO.apareceM - 0.1, 0.1);
-  assert.equal(a.estado, 'espera');
-  const b = actualizarAcecho(a, ACECHO.apareceM, 0.016);
+  const b = actualizarAcecho(crearAcecho(ESQUINA), 0, 0.016);
   assert.equal(b.estado, 'corre');
-  assert.equal(b.pos, ACECHO.distanciaM);
 });
 
-test('a ritmo normal (5 toques/s, 1,9 m/s) giras antes de que llegue y se esfuma en la esquina', () => {
-  assert.equal(simular(1.9).estado, 'fuera');
+test('difícil: a 5,8 toques/s giras antes de que llegue y se esfuma en la esquina', () => {
+  assert.equal(simular(5.8 * 0.38).estado, 'fuera');
 });
 
-test('margen generoso: a 3,6 toques/s todavía escapas', () => {
-  assert.equal(simular(3.6 * 0.38).estado, 'fuera');
-});
-
-test('si vas muy lento (3 toques/s) te atrapa', () => {
-  assert.equal(simular(3 * 0.38).estado, 'atrapa');
+test('a 5 toques/s te atrapa', () => {
+  assert.equal(simular(5 * 0.38).estado, 'atrapa');
 });
 
 test('un salto de tiempo enorme avanza como mucho 0,1 s', () => {
-  const a = actualizarAcecho(crearAcecho(ESQUINA), ACECHO.apareceM, 0.01);
-  const b = actualizarAcecho(a, ACECHO.apareceM, 30);
+  const a = actualizarAcecho(crearAcecho(ESQUINA), 0, 0.01);
+  const b = actualizarAcecho(a, 0, 30);
   assert.ok(a.pos - b.pos <= ACECHO.vel * 0.1 + 1e-9);
 });

@@ -56,14 +56,14 @@ const muestras = (fn, desde, hasta) => {
 };
 const minDist = (as, bs) => Math.min(...as.flatMap((a) => bs.map((b) => Math.hypot(a.x - b.x, a.z - b.z))));
 
-test('el cruce está justo al otro lado de la puerta izquierda de la habitación de 5 m', () => {
-  assert.equal(CRUCE.x, -3.3);
+test('el cruce está justo al otro lado de la puerta izquierda de la habitación de 7 m', () => {
+  assert.equal(CRUCE.x, -4.3);
 });
 
 test('ningún pasillo entra en la habitación', () => {
   for (const r of [izq, der]) {
     for (const p of [...muestras(r.poseEn, 0, r.largo), ...muestras(r.recto, 0, r.sigueRecto)]) {
-      const dentro = p.x > -3 && p.x < 3 && p.z > -2.15 && p.z < 2.15;
+      const dentro = p.x > -4 && p.x < 4 && p.z > -2.15 && p.z < 2.15;
       assert.ok(!dentro, `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
     }
   }

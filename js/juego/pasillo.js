@@ -23,7 +23,8 @@ export function crearPasillos(rng) {
   const papel = materialPS1({ map: tex.papelBackrooms(rng, [1, 1]) });
   const suelo = materialPS1({ map: tex.moqueta(rng, '#6b5d36', [1, 1]) });
   const cielo = materialPS1({ map: tex.techo([1, 1]) });
-  const tubo = materialBrillo({ color: 0xfff6d8 });
+  // Sin niebla: los fluorescentes se ven a lo lejos, como puntos de luz al fondo del pasillo.
+  const tubo = materialBrillo({ color: 0xfff6d8, fog: false });
   const tuboApagado = materialBrillo({ color: 0x3a3626 });
   const tubos = [];
 
@@ -88,6 +89,7 @@ export function crearPasillos(rng) {
 
   // ---------- Los dos caminos ----------
   const caminos = {};
+  const estaciones = {};
   const texturas = PALABRAS.map((p) => tex.grafiti(p, rng));
   const mats = texturas.map((t) => materialPS1({ map: t, transparent: true, alphaTest: 0.3, depthWrite: false }));
 
@@ -118,8 +120,11 @@ export function crearPasillos(rng) {
         losa(esq.x, esq.z, ANCHO, s.rumbo, ALTO, cielo, false);
         pared(esq.x - dSig.x * ANCHO / 2, esq.z - dSig.y * ANCHO / 2, ANCHO, dSig.x, dSig.y);
         if (i === 0) {
-          // Sigue recto: pasillo sin salida por donde viene el segundo monstruo.
+          // Sigue recto: pasillo sin salida por donde viene el segundo monstruo. Sus fluorescentes, con su
+          // distancia a la esquina, son las «estaciones» entre las que salta la masa.
+          const antes = tubos.length;
           tramoRecto(s, d, s.largo + ANCHO / 2, s.largo + ruta.sigueRecto, s.rumbo);
+          estaciones[nombre] = tubos.slice(antes).map((malla, k) => ({ malla, r: ANCHO / 2 + 1.5 + k * FLUORESCENTE_CADA_M }));
           const fondo = rec.recto(ruta.sigueRecto);
           pared(fondo.x, fondo.z, ANCHO, -d.x, -d.y);
         } else {
@@ -154,7 +159,7 @@ export function crearPasillos(rng) {
       m.renderOrder = 1;
       grupo.add(m);
     }
-    caminos[nombre] = { recorrido: rec, luzMeta: [fin.x - dFin.x * 1.2, 1.4, fin.z - dFin.y * 1.2] };
+    caminos[nombre] = { recorrido: rec, luzMeta: [fin.x - dFin.x * 1.2, 1.4, fin.z - dFin.y * 1.2], estaciones: estaciones[nombre] };
   }
 
   hornear(grupo, (p, n, l, malla) => malla.userData.sombra?.(l, p) ?? 1);
@@ -163,6 +168,8 @@ export function crearPasillos(rng) {
     grupo,
     caminos,
     // Un fluorescente al azar parpadea (lo llama el bucle, como mucho 2 veces por segundo).
+    // Enciende (true) o apaga un fluorescente concreto.
+    luz(malla, encendida) { malla.material = encendida ? tubo : tuboApagado; },
     parpadeo(rng2) {
       const m = tubos[Math.floor(rng2() * tubos.length)];
       m.material = m.material === tubo ? tuboApagado : tubo;

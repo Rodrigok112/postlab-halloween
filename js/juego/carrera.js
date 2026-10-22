@@ -1,21 +1,26 @@
-// Carrera por el pasillo: cada toque avanza un paso; el ente avanza a ritmo constante detrás.
-// Funciones puras. Las constantes se ajustan tras probar en móvil (objetivo: gana entre 1/3 y la mitad).
+// Carrera por el pasillo: cada toque avanza un paso. El ente empieza encerrado tras la puerta del cruce;
+// cuando llevas PUERTA_M metros la revienta (soltar) y te persigue a ritmo constante. Funciones puras.
+// Difícil a propósito: solo escapan los más rápidos (unos 6 toques por segundo sostenidos).
 
 export const PASO_M = 0.38; // metros por toque
 export const LARGO_M = 57; // largo por defecto: el camino izquierdo (el derecho mide 95)
-export const VENTAJA_M = 4; // distancia inicial al ente
-export const RETRASO_S = 0.8; // el ente tarda en arrancar
-export const VEL_ENTE = 4 * PASO_M; // m/s: te alcanza si bajas de unos 4 toques por segundo
+export const PUERTA_M = 6; // a esta distancia del cruce el ente revienta la puerta y sale
+export const VEL_ENTE = 2.35; // m/s: unos 6,2 toques por segundo
 export const ATRAPA_M = 0.8;
 // Un fotograma nunca avanza más que esto: si la pestaña se congela, el ente no aparece encima de golpe.
 export const DT_MAX_S = 0.1;
 
 export function createCarrera(largo = LARGO_M) {
-  return { jugador: 0, ente: -VENTAJA_M, toques: 0, t: 0, estado: 'corriendo', largo };
+  return { jugador: 0, ente: 0, suelto: false, toques: 0, t: 0, estado: 'corriendo', largo };
+}
+
+// El ente sale por la puerta reventada, en la posición enPos del recorrido.
+export function soltar(c, enPos) {
+  return { ...c, suelto: true, ente: enPos };
 }
 
 export function distancia(c) {
-  return c.jugador - c.ente;
+  return c.suelto ? c.jugador - c.ente : Infinity;
 }
 
 export function tap(c) {
@@ -27,9 +32,8 @@ export function tap(c) {
 export function update(c, dtS) {
   if (c.estado !== 'corriendo') return c;
   const dt = Math.max(0, Math.min(dtS, DT_MAX_S));
-  const t = c.t + dt;
-  const activo = Math.max(0, Math.min(dt, t - RETRASO_S));
-  const ente = c.ente + VEL_ENTE * activo;
+  if (!c.suelto) return { ...c, t: c.t + dt };
+  const ente = c.ente + VEL_ENTE * dt;
   const atrapado = c.jugador - ente <= ATRAPA_M;
-  return { ...c, t, ente, estado: atrapado ? 'atrapado' : 'corriendo' };
+  return { ...c, t: c.t + dt, ente, estado: atrapado ? 'atrapado' : 'corriendo' };
 }
