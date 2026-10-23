@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO, ahiEstas } from '../js/texts.js';
+import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO, ahiEstas, PSICOLOGO } from '../js/texts.js';
 import { STEPS } from '../js/survey.js';
 
 const at = (id, loop = 1) => ({ index: STEPS.findIndex((x) => x.id === id), loop, locked: false, ended: null, nombre: 'Lucía' });
@@ -76,4 +76,10 @@ test('«ahí estás» lleva el nombre, o nada si no lo hay', () => {
   assert.equal(ahiEstas('Rodrigo'), 'ahí estás, Rodrigo');
   assert.equal(ahiEstas(''), 'ahí estás');
   assert.equal(ahiEstas(undefined), 'ahí estás');
+});
+
+test('final del psicólogo: «{nombre}, hablemos un poco de tu vida» y «vete al psicólogo»', () => {
+  assert.equal(PSICOLOGO.frase('Rodrigo'), 'Rodrigo, hablemos un poco de tu vida');
+  assert.equal(PSICOLOGO.frase(''), 'hablemos un poco de tu vida');
+  assert.equal(PSICOLOGO.cierre, 'vete al psicólogo');
 });

@@ -74,3 +74,9 @@ export function textFor(s) {
 export function ahiEstas(nombre) {
   return nombre ? `ahí estás, ${nombre}` : 'ahí estás';
 }
+
+// El final del psicólogo: el ente, sentado a tu lado con sombrero y cigarrillo, quiere hablar de tu vida.
+export const PSICOLOGO = {
+  frase: (nombre) => (nombre ? `${nombre}, hablemos un poco de tu vida` : 'hablemos un poco de tu vida'),
+  cierre: 'vete al psicólogo',
+};

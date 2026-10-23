@@ -36,8 +36,13 @@ const AUTO = new Set(['cortada', 'destellos', 'ente', 'rayado']);
 const NUMERADOS = new Set(['pregunta', 'cortada', 'final']);
 
 export function createSurvey() {
-  return { index: 0, loop: 1, locked: false, ended: null, nombre: '' };
+  return { index: 0, loop: 1, locked: false, ended: null, nombre: '', respuestas: {} };
 }
+
+// El final del psicólogo: quien lo ha respondido todo mal (estrés, sin amigos, sin familia, sin recordar la
+// cara de su madre) y además le deja su vida.
+const TRISTE = { estres: 'si', amigos: 'no', familia: 'no', madre: 'no' };
+const todoMal = (s) => Object.entries(TRISTE).every(([id, v]) => (s.respuestas ?? {})[id] === v);
 
 export function currentStep(s) {
   return STEPS[s.index];
@@ -66,9 +71,9 @@ export function answer(s, value) {
       return { ...next(s, true), nombre };
     }
     case 'pregunta':
-      return next(s, true);
+      return { ...next(s, true), respuestas: { ...(s.respuestas ?? {}), [step.id]: value } };
     case 'final':
-      if (value === 'si') return { ...s, ended: s.loop === 1 ? 'final2' : 'pasillo' };
+      if (value === 'si') return { ...s, ended: todoMal(s) ? 'psicologo' : s.loop === 1 ? 'final2' : 'pasillo' };
       return { ...s, loop: Math.min(s.loop + 1, MAX_LOOP), locked: false };
     default:
       return s;
@@ -84,8 +89,11 @@ export function unlock(s) {
   return { ...s, locked: false };
 }
 
+// La pregunta final empieza limpia, para que se pueda leer, y con cada No se rompe a lo grande.
+const NIVEL_FINAL = [0, 3, 5];
+
 export function glitchLevel(s) {
   const step = currentStep(s);
-  if (step.kind === 'final') return Math.min(step.nivel + s.loop - 1, 5);
+  if (step.kind === 'final') return NIVEL_FINAL[Math.min(s.loop, NIVEL_FINAL.length) - 1];
   return step.nivel;
 }

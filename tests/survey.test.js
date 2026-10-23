@@ -23,7 +23,7 @@ test('STEPS sigue el orden del spec', () => {
 });
 
 test('createSurvey devuelve el estado inicial', () => {
-  assert.deepEqual(createSurvey(), { index: 0, loop: 1, locked: false, ended: null, nombre: '' });
+  assert.deepEqual(createSurvey(), { index: 0, loop: 1, locked: false, ended: null, nombre: '', respuestas: {} });
 });
 
 test('recorrido completo hasta la pregunta final', () => {
@@ -78,6 +78,18 @@ test('final: No pasa al instante, sin bloquear, con tope 5', () => {
   assert.equal(currentStep(s).id, 'final');
 });
 
+test('las respuestas a las preguntas se guardan por pregunta', () => {
+  const s = answer(at('amigos'), 'no');
+  assert.equal(s.respuestas.amigos, 'no');
+});
+
+test('final del psicólogo: con estrés, sin amigos, sin familia, sin recordar a su madre y diciendo Sí', () => {
+  const triste = { respuestas: { estres: 'si', amigos: 'no', familia: 'no', madre: 'no' } };
+  assert.equal(answer(at('final', triste), 'si').ended, 'psicologo');
+  assert.equal(answer(at('final', { ...triste, loop: 3 }), 'si').ended, 'psicologo');
+  assert.equal(answer(at('final', { respuestas: { ...triste.respuestas, amigos: 'si' } }), 'si').ended, 'final2');
+});
+
 test('final: Sí a la primera es final2 y forzado es pasillo', () => {
   assert.equal(answer(at('final'), 'si').ended, 'final2');
   assert.equal(answer(at('final', { loop: 2 }), 'si').ended, 'pasillo');
@@ -104,8 +116,10 @@ test('glitch: 1–2 limpias, la 3 se rompe y se ordena, la 4 rota constante, lue
   assert.ok(glitchLevel(at('amigos')) > glitchLevel(at('tipica')));
   assert.ok(glitchLevel(at('amigos')) >= glitchLevel(at('estres')));
   assert.ok(glitchLevel(at('lugar')) >= glitchLevel(at('morir')));
-  assert.equal(glitchLevel(at('final')), 4);
-  assert.equal(glitchLevel(at('final', { loop: 2 })), 5);
+  // La pregunta final empieza limpia para que se pueda leer, y con cada No se rompe a lo grande.
+  assert.equal(glitchLevel(at('final')), 0);
+  assert.equal(glitchLevel(at('final', { loop: 2 })), 3);
+  assert.equal(glitchLevel(at('final', { loop: 3 })), 5);
   assert.equal(glitchLevel(at('final', { loop: 5 })), 5);
 });
 
