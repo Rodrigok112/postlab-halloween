@@ -1,39 +1,42 @@
-// Indicaciones de "toca la pantalla" en pixel (23/10): en el móvil, una mano que toca y deja ondas; en el
-// ordenador, la tecla ESPACIO. Se dibujan en lienzos pequeños escalados sin suavizar, a 12 fps como los
-// monstruos. Tres piezas: la indicación de empezar a correr, la del agarre de un brazo (con barra que se llena)
-// y la onda que sale donde tocas.
+// Indicaciones de "pulsa" en pixel (24/10): una barrita pequeña en la esquina que sube con cada toque y baja
+// sola si dejas de pulsar, con una raya que marca lo rápido que va el ente y una manita que toca. Si un brazo te
+// agarra, se pone roja y tiembla, y hay que llenarla hasta arriba. Además sale una onda donde tocas. La manita
+// y las ondas se dibujan en lienzos pequeños escalados sin suavizar, a 12 fps como los monstruos.
+
+import { VEL_ENTE, PASO_M } from './carrera.js';
 
 const FPS = 12;
+// Toques por segundo que llenan la barrita, y cuántos segmentos tiene.
+export const RITMO_MAX = 9;
+export const SEGMENTOS = 12;
 
-// La mano, con el índice hacia arriba. X = borde, W = piel.
-const MANO = [
-  '....XX......',
-  '...XWWX.....',
-  '...XWWX.....',
-  '...XWWX.....',
-  '...XWWXXX...',
-  '...XWWXWWXX.',
-  '.XXXWWXWWXWX',
-  'XWWXWWWWWXWX',
-  'XWWWWWWWWWWX',
-  'XWWWWWWWWWWX',
-  '.XWWWWWWWWWX',
-  '.XWWWWWWWWX.',
-  '..XWWWWWWWX.',
-  '..XWWWWWWX..',
-  '...XXXXXXX..',
+// La manita, con el índice hacia arriba. X = borde, W = piel.
+const MANITA = [
+  '..XX....',
+  '.XWWX...',
+  '.XWWXXX.',
+  'XXWWXWWX',
+  'XWWWWWWX',
+  'XWWWWWWX',
+  '.XWWWWX.',
+  '..XXXX..',
 ];
+
+export function nivelRitmo(toquesPorSegundo) {
+  return Math.min(1, Math.max(0, toquesPorSegundo / RITMO_MAX));
+}
+// Lo rápido que va el ente, en la escala de la barrita.
+export const UMBRAL = nivelRitmo(VEL_ENTE / PASO_M);
+
+export function llenos(nivel) {
+  return Math.round(nivel * SEGMENTOS);
+}
 
 // Pasa un toque (clientX/Y) a coordenadas de la capa del juego. Si el juego va girado 90° (móvil en
 // vertical), la capa está rotada: su x es la y de la pantalla y su y es lo que queda hasta el borde derecho.
 // alto = alto de la capa (el ancho de la pantalla).
 export function aLocal(clientX, clientY, girado, alto) {
   return girado ? { x: clientY, y: alto - clientX } : { x: clientX, y: clientY };
-}
-
-// Segmentos llenos de la barra del agarre: uno por toque dado.
-export function segmentos(agarre, total) {
-  return total - agarre;
 }
 
 function lienzo(w, h, clase) {
@@ -46,8 +49,8 @@ function lienzo(w, h, clase) {
   return { c, ctx };
 }
 
-function mano(ctx, x, y, piel) {
-  MANO.forEach((fila, j) => [...fila].forEach((ch, i) => {
+function manita(ctx, x, y, piel) {
+  MANITA.forEach((fila, j) => [...fila].forEach((ch, i) => {
     if (ch === '.') return;
     ctx.fillStyle = ch === 'X' ? '#000' : piel;
     ctx.fillRect(x + i, y + j, 1, 1);
@@ -63,86 +66,80 @@ function anillo(ctx, cx, cy, r, color) {
   }
 }
 
-// Un dibujo animado a 12 fps que solo corre mientras se ve.
-function animado(nodo, dibujar) {
+function nodo(tag, clase, texto) {
+  const n = document.createElement(tag);
+  n.className = clase;
+  if (texto) n.textContent = texto;
+  return n;
+}
+
+// La barrita. actualizar() se llama en cada fotograma de la carrera con los toques del último segundo.
+export function crearBarra(tactil) {
+  const caja = nodo('div', 'juego-ritmo');
+  const texto = nodo('p', 'juego-ritmo-texto', tactil ? 'TOCA' : 'PULSA');
+  const columna = nodo('div', 'juego-ritmo-col');
+  const barra = nodo('div', 'juego-barra-ritmo');
+  const trozos = Array.from({ length: SEGMENTOS }, () => barra.appendChild(nodo('span', '')));
+  const raya = nodo('i', 'juego-raya');
+  raya.style.bottom = `${UMBRAL * 100}%`;
+  barra.append(raya);
+  const { c, ctx } = lienzo(10, 10, 'juego-manita');
+  columna.append(barra, c);
+  caja.append(texto, columna);
+  // Agarrado: bordes rojos y «¡SUÉLTATE!» en grande.
+  const velo = nodo('div', 'juego-velo');
+  velo.append(nodo('p', '', '¡SUÉLTATE!'));
+
+  let padre = null;
   let id = 0;
   let f = 0;
+  let nivel = 0;
+  let encendidos = -1;
+  let agarrado = false;
+  const dibujar = () => {
+    const ciclo = agarrado ? 2 : 6;
+    const abajo = f % ciclo < ciclo / 2;
+    ctx.clearRect(0, 0, 10, 10);
+    manita(ctx, 1, abajo ? 2 : 0, agarrado ? '#f0c0b0' : '#e8d8c0');
+    f++;
+  };
   return {
-    nodo,
-    mostrar(padre) {
-      padre.append(nodo);
-      if (!id) { dibujar(f++); id = setInterval(() => dibujar(f++), 1000 / FPS); }
+    mostrar(capa) {
+      padre = capa;
+      capa.append(caja);
+      if (!id) { dibujar(); id = setInterval(dibujar, 1000 / FPS); }
     },
     quitar() {
       clearInterval(id);
       id = 0;
-      nodo.remove();
+      caja.remove();
+      velo.remove();
+      padre = null;
     },
-  };
-}
-
-function tecla() {
-  const t = document.createElement('span');
-  t.className = 'juego-tecla';
-  t.textContent = 'ESPACIO';
-  return t;
-}
-
-// Al empezar la carrera: la mano toca la pantalla (o la tecla se hunde) y parpadea TOCA / PULSA.
-export function crearIndicacion(tactil) {
-  const caja = document.createElement('div');
-  caja.className = 'juego-gesto';
-  const texto = document.createElement('p');
-  texto.textContent = tactil ? 'TOCA' : 'PULSA';
-  if (!tactil) {
-    caja.append(tecla(), texto);
-    return animado(caja, () => {});
-  }
-  const { c, ctx } = lienzo(32, 32, 'juego-mano');
-  caja.append(c, texto);
-  return animado(caja, (f) => {
-    const k = f % 12;
-    const abajo = k < 6;
-    ctx.clearRect(0, 0, 32, 32);
-    if (abajo) {
-      anillo(ctx, 15.5, 13, 2 + k * 2.2, '#8a7a62');
-      anillo(ctx, 15.5, 13, 1 + k * 1.2, '#c8b898');
-    }
-    mano(ctx, 11, abajo ? 14 : 10, '#e8d8c0');
-  });
-}
-
-// Agarrado por un brazo: fondo rojo, la mano toca a toda prisa y una barra se llena con cada toque.
-export function crearAgarre(tactil, total) {
-  const caja = document.createElement('div');
-  caja.className = 'juego-agarre';
-  const barra = document.createElement('div');
-  barra.className = 'juego-barra';
-  const trozos = Array.from({ length: total }, () => barra.appendChild(document.createElement('span')));
-  const texto = document.createElement('p');
-  texto.textContent = '¡SUÉLTATE!';
-  let dibujar = () => {};
-  if (tactil) {
-    const { c, ctx } = lienzo(32, 32, 'juego-mano');
-    caja.append(c);
-    dibujar = (f) => {
-      const abajo = f % 2 === 0;
-      ctx.clearRect(0, 0, 32, 32);
-      if (abajo) anillo(ctx, 15.5, 13, 3 + (f % 4) * 2, '#ff3a2a');
-      mano(ctx, 11, abajo ? 14 : 10, '#f0c0b0');
-    };
-  } else {
-    const t = tecla();
-    t.classList.add('rapida');
-    caja.append(t);
-  }
-  caja.append(barra, texto);
-  const a = animado(caja, dibujar);
-  return {
-    ...a,
-    poner(agarre) {
-      const llenos = segmentos(agarre, total);
-      trozos.forEach((s, i) => s.classList.toggle('lleno', i < llenos));
+    // toques: en el último segundo. agarre: toques que faltan para soltarte (0 si no te agarran).
+    // oculta: durante las cutscenes de la carrera, que no piden pulsar.
+    actualizar({ toques, empezado, avisar, agarre, total, oculta }) {
+      caja.style.visibility = oculta ? 'hidden' : '';
+      if (oculta) return;
+      const ahora = agarre > 0;
+      if (ahora) nivel = (total - agarre) / total;
+      else nivel += (nivelRitmo(toques) - nivel) * 0.2;
+      if (ahora !== agarrado) {
+        agarrado = ahora;
+        caja.classList.toggle('agarrado', ahora);
+        if (ahora && padre) padre.append(velo);
+        else velo.remove();
+      }
+      const n = llenos(nivel);
+      if (n !== encendidos) {
+        encendidos = n;
+        trozos.forEach((s, i) => s.classList.toggle('lleno', i < n));
+      }
+      const t = !empezado ? (tactil ? 'TOCA' : 'PULSA') : !agarrado && avisar && nivel < UMBRAL ? '¡MÁS!' : '';
+      if (texto.textContent !== t) {
+        texto.textContent = t;
+        texto.classList.toggle('mas', t === '¡MÁS!');
+      }
     },
   };
 }

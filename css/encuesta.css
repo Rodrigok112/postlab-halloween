@@ -335,27 +335,47 @@ body.nivel-5 .si-media { border-radius: 0; }
   color: #e9e2c8;
 }
 .juego-capa button { pointer-events: auto; }
-/* Al empezar la carrera: la mano pixelada que toca la pantalla (o la tecla ESPACIO) y TOCA / PULSA. */
-.juego-gesto {
-  position: absolute; left: 0; right: 0; bottom: 10%;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-}
-.juego-gesto p, .juego-agarre p {
-  margin: 0; font-size: clamp(30px, 9vmin, 60px);
-  color: #fff6d8; text-shadow: 3px 3px 0 #000;
-  animation: aviso 1s steps(1) infinite;
-}
+/* La barrita de pulsar, pequeña en la esquina: sube con cada toque y baja sola; la raya es lo rápido que va
+   el ente. Agarrado: roja, tiembla, y bordes rojos con «¡SUÉLTATE!». */
 @keyframes aviso { 50% { opacity: .35; } }
-.juego-mano { width: clamp(110px, 34vmin, 200px); image-rendering: pixelated; }
-.juego-tecla {
-  display: inline-block; padding: 6px 28px 4px;
-  font-size: clamp(22px, 6vmin, 36px); color: #2a2620;
-  background: #d8d0c0; border: 3px solid #000;
-  box-shadow: 0 6px 0 #4a4640, 0 6px 0 3px #000;
-  animation: tecla 1s steps(1) infinite;
+.juego-ritmo {
+  position: absolute; right: 4%; bottom: 7%;
+  display: flex; align-items: flex-end; gap: 8px;
 }
-.juego-tecla.rapida { animation-duration: .33s; }
-@keyframes tecla { 50% { transform: translateY(5px); box-shadow: 0 1px 0 #4a4640, 0 1px 0 3px #000; background: #a8a090; } }
+.juego-ritmo-texto {
+  margin: 0 0 4px; font-size: clamp(22px, 6vmin, 40px);
+  color: #fff6d8; text-shadow: 2px 2px 0 #000;
+  animation: aviso .8s steps(1) infinite;
+}
+.juego-ritmo-texto.mas { color: #ff3a2a; animation-duration: .3s; }
+.juego-ritmo-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.juego-barra-ritmo {
+  position: relative;
+  display: flex; flex-direction: column-reverse; gap: 2px;
+  padding: 3px; background: #000; border: 2px solid #000;
+}
+.juego-barra-ritmo span { width: clamp(12px, 3.2vmin, 20px); height: clamp(5px, 1.3vmin, 8px); background: #2a2420; }
+.juego-barra-ritmo span.lleno { background: #e8d8c0; }
+.juego-raya {
+  position: absolute; left: -6px; right: -6px; height: 2px;
+  background: #fff6d8; box-shadow: 0 0 0 1px #000;
+}
+.juego-manita { width: clamp(30px, 8vmin, 48px); image-rendering: pixelated; }
+.juego-ritmo.agarrado { animation: tiembla .12s steps(2) infinite; }
+.juego-ritmo.agarrado span { background: #3a0a08; }
+.juego-ritmo.agarrado span.lleno { background: #ff2a1a; }
+.juego-ritmo.agarrado .juego-raya { display: none; }
+@keyframes tiembla { 50% { transform: translate(2px, -1px); } }
+.juego-velo {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(120, 0, 0, .55) 100%);
+}
+.juego-velo p {
+  margin: 0; font-size: clamp(34px, 10vmin, 64px);
+  color: #ff3a2a; text-shadow: 3px 3px 0 #000;
+  animation: aviso .35s steps(1) infinite;
+}
 /* La onda que sale donde tocas. */
 .juego-onda {
   position: absolute; width: 72px; height: 72px; margin: -36px 0 0 -36px;
@@ -413,20 +433,6 @@ body.nivel-5 .si-media { border-radius: 0; }
   transform-origin: left; animation: plazo linear both;
 }
 @keyframes plazo { from { transform: scaleX(1); } to { transform: scaleX(0); } }
-/* Un brazo de la pared te agarra: bordes rojos, la mano toca a toda prisa y la barra se llena con cada toque. */
-.juego-agarre {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  background: radial-gradient(ellipse at center, transparent 45%, rgba(120, 0, 0, .55) 100%);
-}
-.juego-agarre p { color: #ff3a2a; animation-duration: .35s; }
-.juego-barra {
-  display: flex; gap: 3px; padding: 3px;
-  background: #000; border: 3px solid #000;
-}
-.juego-barra span { width: clamp(14px, 4vmin, 26px); height: clamp(14px, 4vmin, 24px); background: #3a0a08; }
-.juego-barra span.lleno { background: #ff2a1a; }
-
 /* Juego en horizontal en el móvil: si el navegador está en vertical, el juego se gira 90°. */
 .juego.girado {
   inset: auto; top: 0; left: 0;

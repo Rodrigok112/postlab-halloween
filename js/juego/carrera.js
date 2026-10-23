@@ -3,7 +3,7 @@
 // Difícil a propósito: solo escapan los más rápidos (unos 6 toques por segundo sostenidos).
 
 export const PASO_M = 0.38; // metros por toque
-export const LARGO_M = 57; // largo por defecto: el camino izquierdo (el derecho mide 95)
+export const LARGO_M = 76; // largo por defecto: el camino izquierdo (el derecho mide 95)
 export const PUERTA_M = 6; // a esta distancia del cruce el ente revienta la puerta y sale
 export const VEL_ENTE = 2.35; // m/s: unos 6,2 toques por segundo
 export const ATRAPA_M = 0.8;

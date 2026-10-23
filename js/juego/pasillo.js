@@ -11,6 +11,8 @@ const ALTO = 2.5;
 const PALABRAS = ['CORRE', 'ESCAPA', 'NO MIRES ATRÁS', 'QUIERO TU VIDA', 'SÍ'];
 const GRAFITIS_POR_M = 0.8;
 const FLUORESCENTE_CADA_M = 3;
+// Plató de las muertes de la carrera (24/10): un trozo de pasillo apartado de todo, siempre el mismo, hacia −z.
+export const PLATO = { x: 0, z: 600, largo: 16 };
 // Puerta de la habitación al cruce (pared x = −2, entre z = −0,1 y 0,8, 2,1 m de alto).
 const PUERTA = { z0: -0.1, z1: 0.8, alto: 2.1 };
 
@@ -159,6 +161,12 @@ export function crearPasillos(rng) {
     }
     caminos[nombre] = { recorrido: rec, luzMeta: [fin.x - dFin.x * 1.2, 1.4, fin.z - dFin.y * 1.2] };
   }
+
+  // El plató de las muertes: pasillo recto cerrado por los dos lados.
+  const dPlato = dirDe(0);
+  tramoRecto(PLATO, dPlato, 0, PLATO.largo, 0);
+  pared(PLATO.x, PLATO.z, ANCHO, dPlato.x, dPlato.y);
+  pared(PLATO.x + dPlato.x * PLATO.largo, PLATO.z + dPlato.y * PLATO.largo, ANCHO, -dPlato.x, -dPlato.y);
 
   hornear(grupo, (p, n, l, malla) => malla.userData.sombra?.(l, p) ?? 1);
 

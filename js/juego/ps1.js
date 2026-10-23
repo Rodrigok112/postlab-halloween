@@ -175,7 +175,7 @@ export function crearMotor(contenedor) {
   const escena = new THREE.Scene();
   escena.background = new THREE.Color(0x000000);
   escena.fog = new THREE.Fog(0x000000, 2.5, 15);
-  const camara = new THREE.PerspectiveCamera(68, 1, 0.05, 60);
+  const camara = new THREE.PerspectiveCamera(68, 1, 0.05, 120); // lejos: la masa se presenta al fondo de su pasillo, a ~65 m
 
   // El tamaño sale del contenedor (no de la ventana): en el móvil en vertical el juego va girado 90° y su
   // contenedor es apaisado.

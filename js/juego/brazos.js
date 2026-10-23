@@ -16,21 +16,33 @@ function barra(l, r0, r1, material) {
   return m;
 }
 
+// Materiales compartidos por todos los brazos (salen muchos a la vez en la salida del camino izquierdo).
+let comunes = null;
+function materiales() {
+  if (comunes) return comunes;
+  const rng = createRng(77);
+  comunes = {
+    metal: materialPS1({ map: tex.chapa(rng) }),
+    oscuroM: materialPS1({ color: 0x232426 }),
+    piel: materialPS1({ map: tex.pielHumana(rng), side: THREE.DoubleSide }),
+    boquete: materialPS1({ map: tex.agujeroPared(rng), transparent: true, alphaTest: 0.5, depthWrite: false }),
+    negro: materialBrillo({ color: 0x000000 }),
+  };
+  return comunes;
+}
+
 export function crearBrazoPared(semilla = 77) {
   const rng = createRng(semilla);
-  const metal = materialPS1({ map: tex.chapa(rng) });
-  const oscuroM = materialPS1({ color: 0x232426 });
-  const piel = materialPS1({ map: tex.pielHumana(rng), side: THREE.DoubleSide });
+  const { metal, oscuroM, piel, boquete, negro } = materiales();
   const grupo = new THREE.Group();
 
   // El boquete, pegado a la superficie.
-  const hueco = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7),
-    materialPS1({ map: tex.agujeroPared(rng), transparent: true, alphaTest: 0.5, depthWrite: false }));
+  const hueco = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), boquete);
   hueco.position.z = 0.012;
   hueco.renderOrder = 1;
   grupo.add(hueco);
   // Negro detrás del boquete, para que no se vea la pared por dentro.
-  const fondo = new THREE.Mesh(new THREE.CircleGeometry(0.17, 8), materialBrillo({ color: 0x000000 }));
+  const fondo = new THREE.Mesh(new THREE.CircleGeometry(0.17, 8), negro);
   fondo.position.z = 0.006;
   grupo.add(fondo);
 

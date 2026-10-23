@@ -1,11 +1,12 @@
 // Recorridos del pasillo: salen del cruce que hay tras la puerta izquierda de la habitación.
-// Izquierda: corto (57 m, unos 30 s). Derecha: largo y con más curvas (95 m, unos 50 s). Funciones puras.
+// Izquierda: corto (76 m, unos 40 s). Derecha: largo y con más curvas (95 m, unos 50 s). Funciones puras.
 // rumbo = giro de cámara alrededor de y (convención de Three.js): mira hacia (-sin r, 0, -cos r).
 // giro en grados: + a la derecha, − a la izquierda, respecto al tramo anterior.
 // recto: tras el tramo indicado el pasillo sigue recto (largo m): de ahí sale el segundo monstruo (por la
-// izquierda en la primera esquina; por la derecha, en la segunda parte del camino).
-// brazos: [desde, hasta] (m del recorrido) donde salen brazos de las paredes (por la derecha en la primera
-// parte; por la izquierda, en la segunda).
+// izquierda en la segunda esquina, tras un pasillo largo y tranquilo; por la derecha, en la segunda parte).
+// brazos: [desde, hasta] (m del recorrido) donde salen brazos sueltos de las paredes (solo por la derecha).
+// oleada: [desde, hasta] donde salen todos los brazos a la vez; salida: [desde, hasta], el último tramo con
+// las paredes llenas de brazos (solo por la izquierda, 24/10).
 
 // Centro del cruce, justo al otro lado de la puerta izquierda (x = −3,5) de la habitación.
 export const CRUCE = { x: -4.3, z: 0.35 };
@@ -13,19 +14,23 @@ export const CRUCE = { x: -4.3, z: 0.35 };
 export const RUTAS = {
   izquierda: {
     rumbo: Math.PI, // hacia +z
-    recto: { tramo: 0, largo: 40 },
-    brazos: [27, 54],
+    recto: { tramo: 1, largo: 40 },
+    brazos: null,
+    oleada: [47.5, 60.5],
+    salida: [63, 74.5],
     tramos: [
-      { largo: 14, giro: 0 },
-      { largo: 12, giro: 90 },
-      { largo: 14, giro: -90 },
-      { largo: 17, giro: 90 },
+      { largo: 22, giro: 0 },
+      { largo: 24, giro: 90 },
+      { largo: 16, giro: -90 },
+      { largo: 14, giro: 90 },
     ],
   },
   derecha: {
     rumbo: 0, // hacia −z
     recto: { tramo: 6, largo: 40 },
     brazos: [9, 32], // después de que el ente revienta la puerta (a los 6 m)
+    oleada: null,
+    salida: null,
     tramos: [
       { largo: 14, giro: 0 },
       { largo: 10, giro: 90 },
@@ -85,6 +90,7 @@ export function crearRecorrido(ruta, origen = CRUCE) {
 
   return {
     segmentos, largo, esquinas, poseEn, recto, esquinaRecto,
-    tramoRecto: ruta.recto.tramo, sigueRecto: ruta.recto.largo, brazos: ruta.brazos,
+    tramoRecto: ruta.recto.tramo, sigueRecto: ruta.recto.largo,
+    brazos: ruta.brazos, oleada: ruta.oleada, salida: ruta.salida,
   };
 }

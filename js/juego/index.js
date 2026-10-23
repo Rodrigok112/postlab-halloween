@@ -8,7 +8,7 @@ import { crearHabitacion } from './habitacion.js';
 import { crearEnte, crearMano, poseEntrada, mezclarPoses, POSES } from './ente.js';
 import { crearBrazoPared } from './brazos.js';
 import { crearMasa } from './masa.js';
-import { crearPasillos } from './pasillo.js';
+import { crearPasillos, PLATO } from './pasillo.js';
 import { CAMARA, ENTE, ACCIONES, DURACION, MANO, ZOOM, ENTRADA_GLITCH_S, MOMENTOS } from './escenas.js';
 import { muestrear, valorEn } from './linea.js';
 import { CRUCE } from './recorrido.js';
@@ -24,7 +24,7 @@ import { ahiEstas, PSICOLOGO } from '../texts.js';
 import { crearConsulta, vestir, SOFA, SILLON, CENTRO as CENTRO_CONSULTA } from './consulta.js';
 import { cargarFotos, sombraEnte, halo } from './texturas.js';
 import { crearJardin, CENTRO as CENTRO_JARDIN } from './jardin.js';
-import { crearIndicacion, crearAgarre, onda, aLocal } from './gesto.js';
+import { crearBarra, onda, aLocal } from './gesto.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
@@ -53,6 +53,18 @@ const BRAZO_SE_TIRA_M = 1.6;
 const RITMO_LIBRE = 5;
 // Sombra del ente en la pared: aparece cuando está a menos de esto (m).
 const SOMBRA_M = 4.5;
+// Por la izquierda (24/10): tras la esquina de la masa salen todos los brazos a la vez (uno cada OLEADA_CADA_M,
+// alternando paredes), y el último tramo tiene las dos paredes llenas de brazos que se tiran hacia ti sin
+// agarrarte (salen SALIDA_DELANTE_M por delante de ti).
+const OLEADA_CADA_M = 1.4;
+const SALIDA_CADA_M = 1.5;
+const SALIDA_DELANTE_M = 8;
+const BRAZOS_POOL = 16;
+// Zoom al ente cuando revienta la puerta del cruce (fov en grados; el normal es 68).
+const FOV = 68;
+const FOV_PUERTA = 26;
+// Presentación de la masa: zoom rápido al fondo de su pasillo, la vemos cruzar a toda prisa y zoom de vuelta.
+const MASA_S = 2.0;
 // Gritos agónicos del ente mientras te persigue (ms entre uno y otro).
 const GRITO_CADA_MS = [3500, 7000];
 // Escena de muerte: distancias (m) a las que reaparece entre apagones, y poses de cada aparición.
@@ -120,6 +132,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
   // Negro total: se oculta el lienzo (más fiable que esconder la escena).
   const negro = (si) => { motor.lienzo.style.visibility = si ? 'hidden' : 'visible'; };
+  const ponerFov = (f) => { if (camara.fov !== f) { camara.fov = f; camara.updateProjectionMatrix(); } };
 
   // Sacudida de cámara tras un golpe: desplazamiento al azar que se apaga solo.
   let sacudidaHasta = 0;
@@ -187,7 +200,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   mano.grupo.visible = false;
   mano.grupo.rotation.y = -Math.PI / 2; // apunta hacia dentro de la habitación (−x)
   // Brazos de pared que se reutilizan durante la carrera.
-  const brazosPared = [11, 22, 33, 44, 55, 66].map((semilla) => crearBrazoPared(semilla));
+  const brazosPared = Array.from({ length: BRAZOS_POOL }, (_, i) => crearBrazoPared(11 * (i + 1)));
   for (const b of brazosPared) { b.grupo.visible = false; escena.add(b.grupo); }
   // La luz roja de la masa, al fondo de su pasillo: un núcleo y un halo grande que siempre mira a la cámara (se
   // ve a lo lejos, sin niebla). La masa lleva el mismo halo cuando corre: la luz roja es ella.
@@ -456,7 +469,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // Si no eliges, la revienta y te atrapa.
   function elegir() {
     motor.glitch(0);
-    if (camara.fov !== 68) { camara.fov = 68; camara.updateProjectionMatrix(); }
+    ponerFov(FOV);
     mano.grupo.visible = false;
     ente.grupo.visible = false;
     ente.oscuro(false);
@@ -502,7 +515,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       capa.replaceChildren();
       hab.estallar('izquierda');
       portazo();
-      escenaMuerte({ quien: 'ente', x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE + Math.PI });
+      escenaMuerte({ x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE + Math.PI });
     }, ELEGIR_S * 1000);
     timers.push(plazo);
 
@@ -548,9 +561,9 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     let proximoGrito = 0;
     const toquesRecientes = [];
     capa.replaceChildren();
-    const indicacion = crearIndicacion(tactil);
-    indicacion.mostrar(capa);
-    const aviso = crearAgarre(tactil, AGARRE_TOQUES);
+    const barra = crearBarra(tactil);
+    barra.mostrar(capa);
+    let masaVista = false;
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
     capa.append(ojos);
@@ -559,7 +572,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (ev.type === 'keydown' && ev.code !== 'Space') return;
       if (ev.type === 'keydown') ev.preventDefault();
       if (c.estado !== 'corriendo' || pausa) return;
-      if (!empezado) { empezado = true; indicacion.quitar(); ultimo = performance.now(); }
+      if (!empezado) { empezado = true; ultimo = performance.now(); }
       const agarrado = c.agarre > 0;
       c = tap(c);
       toquesRecientes.push(performance.now());
@@ -568,7 +581,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         const q = aLocal(ev.clientX, ev.clientY, contenedor.classList.contains('girado'), contenedor.clientHeight);
         onda(capa, q.x, q.y, agarrado);
       }
-      if (agarrado) { sacudir(0.5, 120); aviso.poner(c.agarre); } else paso();
+      if (agarrado) sacudir(0.5, 120); else paso();
     };
     contenedor.addEventListener('pointerdown', alTocar);
     window.addEventListener('keydown', alTocar);
@@ -582,13 +595,18 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     const posarMasa = () => {
       const fondo = rec.recto(rec.sigueRecto - 1);
       if (acecho.estado === 'espera') {
-        // La luz roja, quieta al fondo, en cuanto entras en el tramo que lleva a su esquina.
-        const visible = c.jugador > acecho.esquina - 16;
+        // La luz roja, quieta al fondo, después de verla cruzar; late y brilla más cuanto más te acercas.
+        const visible = masaVista;
         luzRoja.visible = visible;
+        if (!visible) return;
+        const ini = rec.segmentos[rec.tramoRecto].desde;
+        const k = Math.max(0, Math.min(1, (c.jugador - ini) / (acecho.esquina - ACECHO.antesM - ini)));
+        const latido = 0.5 + 0.5 * Math.sin((performance.now() / 1000) * (3 + 9 * k));
         luzRoja.position.set(fondo.x, 1.5, fondo.z);
+        luzRoja.children[0].scale.setScalar(1 + k * 0.8);
         luzRoja.children[1].lookAt(camara.position);
-        luzRoja.children[1].scale.setScalar(0.85 + rng() * 0.3); // parpadea un poco
-        if (visible) luces.punto(L_MASA, [fondo.x, 1.6, fondo.z], 0xff2010, 2.0, 6);
+        luzRoja.children[1].scale.setScalar((0.9 + 1.6 * k) * (0.85 + 0.3 * latido) * (0.9 + rng() * 0.2));
+        luces.punto(L_MASA, [fondo.x, 1.6, fondo.z], 0xff2010, (1.2 + 2.5 * k) * (0.7 + 0.3 * latido), 6 + 6 * k);
         return;
       }
       luzRoja.visible = false;
@@ -603,7 +621,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     };
 
     // ----- Brazos de la pared: salen delante de ti; si pasas despacio, te agarran -----
-    let proximoBrazo = rec.brazos[0] + 2;
+    let proximoBrazo = rec.brazos ? rec.brazos[0] + 2 : Infinity;
     const brazos = []; // { b, d, nace, estado: 'sale' | 'agarra' | 'vuelve', desde }
     // Para depurar desde la consola cuando se entra por un atajo de prueba.
     if (window.location.hash.startsWith('#juego-')) window.__carrera = () => ({ c, brazos: brazos.map((a) => [a.d, a.estado]), proximoBrazo, toques: toquesRecientes.length });
@@ -627,18 +645,39 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       g.visible = true;
       b.salir(0);
     };
+    const sacarBrazo = (d, lado, nace, decorativo) => {
+      const libre = brazosPared.find((b) => !brazos.some((a) => a.b === b));
+      if (!libre) return false;
+      colocarBrazo(libre, d, lado);
+      brazos.push({ b: libre, d, nace, estado: 'sale', base: libre.grupo.quaternion.clone(), decorativo });
+      return true;
+    };
+    let oleadaHecha = false;
+    let proximoSalida = rec.salida ? rec.salida[0] : Infinity;
     const moverBrazos = (ahora) => {
-      while (toquesRecientes.length && ahora - toquesRecientes[0] > 1000) toquesRecientes.shift();
-      if (c.jugador >= proximoBrazo - 3.2 && proximoBrazo <= rec.brazos[1]) {
+      if (rec.brazos && c.jugador >= proximoBrazo - 3.2 && proximoBrazo <= rec.brazos[1]) {
         const par = rng() < BRAZO_PAR;
         for (const lado of par ? [1, -1] : [undefined]) {
-          const libre = brazosPared.find((b) => !brazos.some((a) => a.b === b));
-          if (!libre) break;
-          colocarBrazo(libre, proximoBrazo + (lado === -1 ? 0.5 : 0), lado);
-          brazos.push({ b: libre, d: proximoBrazo + (lado === -1 ? 0.5 : 0), nace: ahora, estado: 'sale', base: libre.grupo.quaternion.clone() });
+          if (!sacarBrazo(proximoBrazo + (lado === -1 ? 0.5 : 0), lado, ahora, false)) break;
         }
         astillazo();
         proximoBrazo += BRAZO_CADA_M[0] + rng() * (BRAZO_CADA_M[1] - BRAZO_CADA_M[0]);
+      }
+      // Todos a la vez, uno tras otro en un abrir y cerrar de ojos, nada más girar la esquina de la masa.
+      if (rec.oleada && !oleadaHecha && c.jugador >= rec.oleada[0] - 1.2) {
+        oleadaHecha = true;
+        let i = 0;
+        for (let d = rec.oleada[0]; d <= rec.oleada[1]; d += OLEADA_CADA_M, i++) sacarBrazo(d, i % 2 ? 1 : -1, ahora + i * 60, false);
+        astillazo();
+        golpePuerta(0.8);
+        sacudir(0.9, 400);
+        scream(0.35, 'medio');
+      }
+      // La salida, con las dos paredes llenas.
+      while (rec.salida && proximoSalida <= rec.salida[1] && c.jugador >= proximoSalida - SALIDA_DELANTE_M) {
+        if (!sacarBrazo(proximoSalida, 1, ahora, true)) break;
+        sacarBrazo(proximoSalida + SALIDA_CADA_M / 2, -1, ahora, true);
+        proximoSalida += SALIDA_CADA_M;
       }
       for (let i = brazos.length - 1; i >= 0; i--) {
         const a = brazos[i];
@@ -654,7 +693,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
             a.b.agarrar(0.2);
           }
           if (Math.abs(falta) < 0.25 && !a.rozado) { a.rozado = true; sacudir(0.5, 150); golpePuerta(0.25); }
-          if (Math.abs(c.jugador - a.d) < 0.6 && c.agarre === 0 && toquesRecientes.length < RITMO_LIBRE) {
+          if (!a.decorativo && Math.abs(c.jugador - a.d) < 0.6 && c.agarre === 0 && toquesRecientes.length < RITMO_LIBRE) {
             a.estado = 'agarra';
             c = agarrar(c);
             a.b.salir(1);
@@ -663,11 +702,9 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
             golpePuerta(0.6);
             sacudir(1.2, 400);
             vibrar();
-            aviso.poner(c.agarre);
-            aviso.mostrar(capa);
           } else if (c.jugador > a.d + 1.0) { a.estado = 'vuelve'; a.desde = ahora; }
         } else if (a.estado === 'agarra') {
-          if (c.agarre === 0) { a.estado = 'vuelve'; a.desde = ahora; aviso.quitar(); }
+          if (c.agarre === 0) { a.estado = 'vuelve'; a.desde = ahora; }
         } else {
           a.b.salir(1 - (ahora - a.desde) / 400);
           if (ahora - a.desde > 400) { a.b.grupo.visible = false; brazos.splice(i, 1); }
@@ -698,11 +735,58 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     // ----- La puerta del cruce revienta: te giras, sale el ente, te mira despacio, grita -----
     let revientaDesde = 0;
     let gritado = false;
+    let escenaPausa = null;
     const reventar = (ahora) => {
       pausa = true;
+      escenaPausa = escenaRevienta;
       revientaDesde = ahora;
       gritado = false;
       golpeando = false;
+    };
+
+    // ----- Presentación de la masa: zoom rápido al fondo de su pasillo; la vemos cruzar a toda prisa y salir de
+    // cuadro; zoom de vuelta y sigues corriendo, ya con su luz roja al fondo -----
+    let masaDesde = 0;
+    let masaGrito = false;
+    const presentarMasa = (ahora) => {
+      pausa = true;
+      escenaPausa = escenaMasa;
+      masaDesde = ahora;
+      masaGrito = false;
+      thump(0.5);
+    };
+    const escenaMasa = (ahora) => {
+      const t = (ahora - masaDesde) / 1000;
+      const p = rec.poseEn(c.jugador);
+      const fondo = rec.recto(rec.sigueRecto - 0.8);
+      const lejos = Math.hypot(fondo.x - p.x, fondo.z - p.z);
+      // Plano de pecho al fondo del pasillo (1,4 m de alto, de 0,65 a 2,05 m): el hueco llena media pantalla.
+      const fovCerca = (2 * Math.atan(0.7 / lejos) * 180) / Math.PI;
+      const u = smooth(t / 0.3) * (1 - smooth((t - 1.6) / 0.3));
+      ponerFov(FOV + (fovCerca - FOV) * u);
+      camaraEn(p.x, p.z, p.rumbo, Math.atan2(1.35 - OJO_Y, lejos) * u);
+      const dir = [-Math.sin(r0), -Math.cos(r0)];
+      const der = [-dir[1], dir[0]];
+      if (t >= 0.4 && t < 1.45) {
+        // Cruza de derecha a izquierda a unos 5 m/s.
+        const lat = 2.6 - 5.2 * ((t - 0.4) / 1.05);
+        masa.grupo.visible = true;
+        haloMasa.visible = true;
+        haloMasa.lookAt(camara.position);
+        masa.grupo.position.set(fondo.x + der[0] * lat, 0, fondo.z + der[1] * lat);
+        masa.grupo.rotation.y = Math.atan2(-der[0], -der[1]);
+        luces.punto(L_MASA, [fondo.x + der[0] * lat, 2.0, fondo.z + der[1] * lat], 0xff2a1a, 2.4, 5);
+        if (!masaGrito && t >= 0.5) { masaGrito = true; scream(0.7, 'abierto'); sacudir(0.6, 300); }
+      } else if (t >= 1.45) {
+        masa.grupo.visible = false;
+      }
+      if (t >= MASA_S) {
+        pausa = false;
+        masaVista = true;
+        ponerFov(FOV);
+        masa.grupo.visible = false;
+        ultimo = ahora;
+      }
     };
     const escenaRevienta = (ahora) => {
       const t = (ahora - revientaDesde) / 1000;
@@ -710,6 +794,10 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const ida = smooth(t / 0.45);
       const vuelta = smooth((t - (REVIENTA_S - 0.35)) / 0.35);
       camaraEn(p.x, p.z, p.rumbo + Math.PI * (ida - vuelta), 0.08 * (ida - vuelta));
+      // Zoom al ente mientras sale (se ve pequeño a 6 m) y de vuelta al girarte.
+      const zoom = smooth((t - 0.5) / 0.5) * (1 - vuelta);
+      ponerFov(FOV + (FOV_PUERTA - FOV) * zoom);
+      escena.fog.far = 13 + 9 * zoom; // con el zoom, la niebla no se lo come
       if (t >= 0.25 && !hab.izquierdaRota()) {
         hab.estallar('izquierda');
         portazo();
@@ -751,6 +839,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       }
       if (t >= REVIENTA_S) {
         pausa = false;
+        ponerFov(FOV);
+        escena.fog.far = 13;
         motor.glitch(0);
         glitchCruce.restaurar();
         ente.grupo.visible = false;
@@ -784,10 +874,13 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
           arrastre = null;
         }
         if (!c.suelto && c.jugador >= PUERTA_M) reventar(ahora);
+        else if (!masaVista && c.jugador >= rec.segmentos[rec.tramoRecto].desde + 1.2) presentarMasa(ahora);
       }
+      while (toquesRecientes.length && ahora - toquesRecientes[0] > 1000) toquesRecientes.shift();
+      barra.actualizar({ toques: toquesRecientes.length, empezado, avisar: c.suelto, agarre: c.agarre, total: AGARRE_TOQUES, oculta: pausa });
       balanceo = Math.max(0, balanceo - dt * 6);
       const p = rec.poseEn(c.jugador);
-      if (pausa) escenaRevienta(ahora);
+      if (pausa) escenaPausa(ahora);
       else {
         camaraEn(p.x, p.z, p.rumbo);
         camara.position.y += Math.sin(balanceo * Math.PI) * BALANCEO_M;
@@ -813,7 +906,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (ticMasa !== ultimoTicMasa) {
         ultimoTicMasa = ticMasa;
         for (const a of brazos) a.b.tic(rng);
-        posarMasa();
+        if (!pausa || escenaPausa !== escenaMasa) posarMasa();
         if (masa.grupo.visible) masa.animar(ticMasa * 2.2, rng);
         const hueco = (acecho.esquina - c.jugador) + (acecho.pos ?? ACECHO.distanciaM);
         arrastre?.setCercania(1 - Math.min(1, hueco / 30));
@@ -830,20 +923,19 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const limpiar = () => {
         quitarToques();
         luzRoja.visible = false;
-        aviso.quitar();
-        indicacion.quitar();
+        barra.quitar();
         sombra.visible = false;
         for (const a of brazos) a.b.grupo.visible = false;
       };
       if (acecho.estado === 'atrapa') {
         limpiar();
-        escenaMuerte({ quien: 'masa', x: p.x, z: p.z, yaw: p.rumbo });
+        muerteMasa();
         return;
       }
       if (c.estado === 'atrapado') {
         limpiar();
-        // Te das la vuelta: el ente viene por detrás.
-        escenaMuerte({ quien: 'ente', x: p.x, z: p.z, yaw: p.rumbo + Math.PI });
+        // En el plató, siempre igual (24/10).
+        escenaMuerte({ x: PLATO.x, z: PLATO.z - 3, yaw: 0, rnd: createRng(1313), fija: true });
         return;
       }
       if (c.estado === 'escapado') { limpiar(); escapar(); return; }
@@ -864,77 +956,143 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     if (navigator.vibrate && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate([200, 80, 400]);
   };
 
-  // Muerte en escena (ente o masa): negro; miras hacia él (yaw) y, entre apagones, reaparece cada vez más cerca
-  // y en otra pose, como a saltos, hasta tenerlo encima: susto y grito. Los apagones son oscuridad, no destellos.
-  function escenaMuerte({ quien, x, z, yaw }) {
+  // Muerte del ente: negro; miras hacia él (yaw) y, entre apagones, reaparece cada vez más cerca y en otra pose,
+  // como a saltos, hasta tenerlo encima: susto y grito. Los apagones son oscuridad, no destellos.
+  // fija (muertes de la carrera, 24/10): en el plató, con el azar sembrado (siempre igual), negro más corto y al
+  // final se te tira a la cara.
+  function escenaMuerte({ x, z, yaw, rnd = rng, fija = false }) {
     const dir = [-Math.sin(yaw), -Math.cos(yaw)];
     const colocar = (dist, k) => {
       const final = k === 'final';
-      if (quien === 'ente') {
-        // Los pies van por detrás de los ojos tanto como se inclina hacia delante.
-        const delante = final ? 1.62 : 1.47;
-        const px = x + dir[0] * (dist + delante);
-        const pz = z + dir[1] * (dist + delante);
-        // En el susto final, la pose de reposo (con la que se midió dónde quedan los ojos) con la boca abierta.
-        const nombre = final ? 'reposo' : POSES_MUERTE[k % POSES_MUERTE.length];
-        ente.grupo.visible = true;
-        ente.grupo.position.set(px, 0, pz);
-        ente.grupo.rotation.y = Math.atan2(x - px, z - pz);
-        ente.pose(nombre);
-        ente.andar(0);
-        ente.abrir(0);
-        ente.cabezaHacia(0);
-        ente.agacharse(nombre === 'cuatroPatas' ? 0 : final ? 1.9 : 1.2);
-        ente.alcanzar(final ? 0.8 : 0);
-        ente.boca(final ? 1 : 0);
-      } else {
-        const px = x + dir[0] * (dist + 0.34);
-        const pz = z + dir[1] * (dist + 0.34);
-        masa.grupo.visible = true;
-        haloMasa.visible = false; // de cerca, el halo taparía las caras
-        masa.grupo.position.set(px, 0, pz);
-        masa.grupo.rotation.y = Math.atan2(x - px, z - pz);
-        masa.posar(k, rng);
-      }
+      // Los pies van por detrás de los ojos tanto como se inclina hacia delante.
+      const delante = final ? 1.62 : 1.47;
+      const px = x + dir[0] * (dist + delante);
+      const pz = z + dir[1] * (dist + delante);
+      // En el susto final, la pose de reposo (con la que se midió dónde quedan los ojos) con la boca abierta.
+      const nombre = final ? 'reposo' : POSES_MUERTE[k % POSES_MUERTE.length];
+      ente.grupo.visible = true;
+      ente.grupo.position.set(px, 0, pz);
+      ente.grupo.rotation.y = Math.atan2(x - px, z - pz);
+      ente.pose(nombre);
+      ente.andar(0);
+      ente.abrir(0);
+      ente.cabezaHacia(0);
+      ente.agacharse(nombre === 'cuatroPatas' ? 0 : final ? 1.9 : 1.2);
+      ente.alcanzar(final ? 0.8 : 0);
+      ente.boca(final ? 1 : 0);
     };
+    if (fija) {
+      ambientePasillo();
+      luces.mover(L_LINTERNA, [x, 2.2, z]);
+      luces.apagar(L_META);
+    }
+    ponerFov(FOV);
     vibrar();
     thump(0.6);
     negro(true);
+    const INI = fija ? 0.3 : 0.5;
     const inicio = performance.now();
     let aparicion = -1;
-    let grito = false;
+    let gritoEn = null;
     let ultimoTicM = -1;
-    const FIN = 0.5 + 0.6 * DISTANCIAS_MUERTE.length + 1.1;
+    const FIN = INI + 0.6 * DISTANCIAS_MUERTE.length + 1.1;
     const bucleM = (ahora) => {
       if (apagado) return;
       const t = (ahora - inicio) / 1000;
-      camaraEn(x, z, yaw, quien === 'ente' ? 0.08 : 0);
+      camaraEn(x, z, yaw, 0.08);
       hab.actualizarTrozos(1 / 60);
-      if (t >= 0.5) {
-        const k = Math.floor((t - 0.5) / 0.6);
+      if (t >= INI) {
+        const k = Math.floor((t - INI) / 0.6);
         if (k < DISTANCIAS_MUERTE.length) {
-          if (k !== aparicion) { aparicion = k; colocar(DISTANCIAS_MUERTE[k], k); if (quien === 'ente') pasoMetal(0.4 + k * 0.2); }
-          negro((t - 0.5) % 0.6 > 0.35);
-        } else if (!grito) {
-          grito = true;
-          colocar(0.5, 'final');
+          if (k !== aparicion) { aparicion = k; colocar(DISTANCIAS_MUERTE[k], k); pasoMetal(0.4 + k * 0.2); }
+          negro((t - INI) % 0.6 > 0.35);
+        } else if (gritoEn === null) {
+          gritoEn = t;
+          colocar(fija ? 1.3 : 0.5, 'final');
           negro(false);
           screamQTV();
           sacudir(1.8, 900);
           coro?.setCercania(1);
+        } else if (fija) {
+          // Se te tira a la cara.
+          colocar(1.3 - 0.85 * smooth((t - gritoEn) / 0.25), 'final');
         }
       }
       const tic = Math.floor(t * FPS_MONSTRUO);
       if (tic !== ultimoTicM) {
         ultimoTicM = tic;
-        if (quien === 'ente') motor.glitch(ente.tic(rng, 1) ? 1 : 0);
-        else motor.glitch(masa.posar(aparicion >= DISTANCIAS_MUERTE.length || grito ? 'final' : Math.max(0, aparicion), rng) ? 1 : 0);
+        motor.glitch(ente.tic(rnd, 1) ? 1 : 0);
       }
       aplicarSacudida(ahora);
       motor.render();
       if (t < FIN) { raf = requestAnimationFrame(bucleM); return; }
       motor.glitch(0);
       ente.grupo.visible = false;
+      terminarMuerte();
+    };
+    raf = requestAnimationFrame(bucleM);
+  }
+
+  // Muerte de la masa (24/10), en el plató y siempre igual: negro; viene corriendo de frente, las cuatro gritan,
+  // se te echan encima y las ocho manos te tapan la pantalla hasta que todo se queda negro.
+  function muerteMasa() {
+    const rnd = createRng(2424);
+    const x = PLATO.x, z = PLATO.z - 3, yaw = 0;
+    const dir = [-Math.sin(yaw), -Math.cos(yaw)];
+    ambientePasillo();
+    luces.mover(L_LINTERNA, [x, 2.2, z]);
+    luces.apagar(L_META);
+    ponerFov(FOV);
+    vibrar();
+    thump(0.6);
+    negro(true);
+    const colocar = (dist) => {
+      const px = x + dir[0] * dist, pz = z + dir[1] * dist;
+      masa.grupo.position.set(px, 0, pz);
+      masa.grupo.rotation.y = Math.atan2(x - px, z - pz);
+      luces.punto(L_MASA, [px, 2.0, pz], 0xff2a1a, 2.4, 5);
+    };
+    const inicio = performance.now();
+    let grito = false;
+    let ultimoTicM = -1;
+    const bucleM = (ahora) => {
+      if (apagado) return;
+      const t = (ahora - inicio) / 1000;
+      camaraEn(x, z, yaw, 0);
+      let roto = false;
+      const tic = Math.floor(t * FPS_MONSTRUO);
+      const nuevo = tic !== ultimoTicM;
+      ultimoTicM = tic;
+      if (t >= 0.3 && t < 1.0) {
+        // Corre hacia ti de 7 m a 2 m.
+        negro(false);
+        masa.grupo.visible = true;
+        const d = 7 - 5 * Math.max(0, (paso12(t) - 0.3) / 0.7);
+        haloMasa.visible = d > 3;
+        haloMasa.lookAt(camara.position);
+        colocar(d);
+        if (nuevo) roto = masa.animar(tic * 2.2, rnd);
+      } else if (t >= 1.0 && t < 1.75) {
+        if (!grito) {
+          grito = true;
+          haloMasa.visible = false;
+          screamQTV();
+          scream(0.9, 'abierto');
+          sacudir(1.8, 900);
+          coro?.setCercania(1);
+        }
+        // Encima de ti, con los brazos hacia la cámara: las manos tapan la pantalla.
+        colocar(2.0 - 1.0 * smooth((t - 1.0) / 0.45));
+        if (nuevo) roto = masa.posar('final', rnd);
+        masa.alcanzar(camara.position);
+      } else if (t >= 1.75) {
+        negro(true);
+      }
+      if (nuevo) motor.glitch(roto ? 1 : 0);
+      aplicarSacudida(ahora);
+      motor.render();
+      if (t < 2.4) { raf = requestAnimationFrame(bucleM); return; }
+      motor.glitch(0);
       masa.grupo.visible = false;
       luces.apagar(L_MASA);
       terminarMuerte();
@@ -971,7 +1129,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   }
 
   // Para depurar desde la consola cuando se entra por un atajo de prueba.
-  if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, masa, mano, camara, escena, hab, pasillos };
+  if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, masa, mano, camara, escena, hab, pasillos, muerteMasa };
 
   // Final del psicólogo: negro; estás sentado en el sofá de una consulta; giras la cabeza y el ente está en el
   // sillón de al lado, con sombrero y cigarrillo: «{nombre}, hablemos un poco de tu vida». Luego, a negro:

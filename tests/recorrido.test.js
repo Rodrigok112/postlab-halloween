@@ -7,8 +7,8 @@ const izq = crearRecorrido(RUTAS.izquierda);
 const der = crearRecorrido(RUTAS.derecha);
 
 // rumbo = giro de cámara alrededor de y (convención de Three.js): mira a (-sin r, 0, -cos r).
-test('la izquierda es la corta (57 m) y la derecha la larga, con más curvas (95 m)', () => {
-  assert.equal(izq.largo, 57);
+test('la izquierda es la corta (76 m) y la derecha la larga, con más curvas (95 m)', () => {
+  assert.equal(izq.largo, 76);
   assert.equal(der.largo, 95);
   assert.ok(der.esquinas.length > izq.esquinas.length);
 });
@@ -21,11 +21,11 @@ test('las dos salen del cruce: la izquierda hacia +z y la derecha hacia −z', (
   assert.ok(cerca(-Math.cos(b.rumbo), -1), 'derecha mira a −z');
 });
 
-test('la primera esquina está a 14 m en los dos caminos', () => {
-  assert.equal(izq.esquinas[0], 14);
+test('la primera esquina: a 22 m por la izquierda (pasillo largo y tranquilo) y a 14 m por la derecha', () => {
+  assert.equal(izq.esquinas[0], 22);
   assert.equal(der.esquinas[0], 14);
-  const e = izq.poseEn(14);
-  assert.ok(cerca(e.x, CRUCE.x) && cerca(e.z, CRUCE.z + 14));
+  const e = izq.poseEn(22);
+  assert.ok(cerca(e.x, CRUCE.x) && cerca(e.z, CRUCE.z + 22));
 });
 
 test('el rumbo cambia de forma continua', () => {
@@ -41,8 +41,9 @@ test('fuera de rango se limita a los extremos', () => {
   assert.deepEqual(der.poseEn(999), der.poseEn(95));
 });
 
-test('la masa: por la izquierda en la primera esquina; por la derecha, en la segunda parte del camino', () => {
-  assert.equal(izq.esquinaRecto, 14);
+test('la masa: por la izquierda en la segunda esquina; por la derecha, en la segunda parte del camino', () => {
+  assert.equal(izq.esquinaRecto, izq.esquinas[1]);
+  assert.equal(izq.tramoRecto, 1);
   assert.ok(der.esquinaRecto > der.largo / 2);
   assert.ok(izq.esquinas.includes(izq.esquinaRecto) && der.esquinas.includes(der.esquinaRecto));
 });
@@ -59,9 +60,18 @@ test('el pasillo que sigue recto tras esa esquina continúa en la misma direcci�
   }
 });
 
-test('los brazos de pared: por la derecha en la primera parte; por la izquierda, en la segunda', () => {
+test('los brazos de pared: por la derecha, sueltos en la primera parte', () => {
   assert.ok(der.brazos[0] > 6 && der.brazos[0] < 12 && der.brazos[1] <= der.largo / 2, 'después de la puerta reventada');
-  assert.ok(izq.brazos[0] >= izq.esquinas[0] && izq.brazos[1] <= izq.largo);
+  assert.equal(izq.brazos, null, 'por la izquierda no hay brazos sueltos');
+});
+
+test('por la izquierda, tras la esquina de la masa, salen todos los brazos a la vez y la salida está llena de ellos', () => {
+  const [o0, o1] = izq.oleada;
+  assert.ok(o0 > izq.esquinaRecto && o1 < izq.esquinas[2], 'la oleada, en el tramo después de la masa');
+  const [s0, s1] = izq.salida;
+  assert.ok(s0 > izq.esquinas[2] && s1 < izq.largo, 'la salida, en el último tramo');
+  assert.equal(der.oleada, null);
+  assert.equal(der.salida, null);
 });
 
 // Muestras del eje de cada pasillo, para comprobar que ninguno pisa la habitación ni a otro.

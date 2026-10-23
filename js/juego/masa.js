@@ -10,6 +10,10 @@ import { createRng } from '../glitch.js';
 
 const REJILLA = 0.4; // < 1: temblor exagerado
 const CADERA = 0.9;
+const ABAJO = new THREE.Vector3(0, -1, 0);
+// Hacia dónde va cada mano respecto al punto que alcanzan (m, en el mundo): repartidas para tapar toda la vista.
+const DESVIOS = [[-0.3, 0.15], [0.3, -0.1], [-0.12, -0.18], [0.15, 0.2], [-0.25, -0.05], [0.05, 0.05], [0.28, 0.12], [-0.05, 0.22]]
+  .map(([x, y]) => new THREE.Vector3(x, y, 0));
 
 function barra(l, r0, r1, material) {
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, l, 5, 1), material);
@@ -151,8 +155,7 @@ export function crearMasa() {
           p.rodilla.rotation.x = 0.4 + Math.max(0, u) * 1.0;
         }
         for (const b of ia.brazos) {
-          b.hombro.rotation.x = -1.5 + Math.sin(f * 1.3 + b.s) * 0.35 + (rnd() - 0.5) * 0.15;
-          b.hombro.rotation.z = b.s * 0.25;
+          b.hombro.rotation.set(-1.5 + Math.sin(f * 1.3 + b.s) * 0.35 + (rnd() - 0.5) * 0.15, 0, b.s * 0.25);
           b.codo.rotation.x = -0.2 + Math.max(0, Math.sin(f + b.s)) * 0.4;
         }
         ia.cabeza.rotation.set((rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.5, (rnd() - 0.5) * 0.6);
@@ -160,6 +163,24 @@ export function crearMasa() {
       }
       cuerpo.position.y = Math.abs(Math.sin(fase * 2)) * 0.05;
       return glitch(rnd);
+    },
+    // Todos los brazos rectos hacia un punto del mundo (la cámara), cada mano algo desviada (encima de ti).
+    alcanzar(punto) {
+      const v = new THREE.Vector3();
+      const dir = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      grupo.updateMatrixWorld(true);
+      let n = 0;
+      for (const ia of ias) {
+        for (const b of ia.brazos) {
+          b.hombro.getWorldPosition(v);
+          dir.copy(punto).add(DESVIOS[n++ % DESVIOS.length]).sub(v).normalize();
+          b.hombro.parent.getWorldQuaternion(q);
+          dir.applyQuaternion(q.invert());
+          b.hombro.quaternion.setFromUnitVectors(ABAJO, dir);
+          b.codo.rotation.x = 0;
+        }
+      }
     },
     // Una pose distinta para cada aparición de la escena de muerte (k = 0, 1, 2…; 'final' = encima de ti):
     // cada IA en una postura diferente, todas con los brazos hacia ti y las cabezas en ángulos imposibles.
@@ -173,7 +194,8 @@ export function crearMasa() {
           p.rodilla.rotation.x = 0.3 + r() * 1.4;
         }
         for (const b of ia.brazos) {
-          b.hombro.rotation.set(final ? -1.7 : -0.8 - r() * 1.2, 0, b.s * (0.2 + r() * 0.8));
+          // Encima de ti: todos los brazos hacia la cámara, un poco hacia el centro, para taparte la vista.
+          b.hombro.rotation.set(final ? -2.0 - r() * 0.25 : -0.8 - r() * 1.2, 0, final ? -b.s * (0.1 + r() * 0.25) : b.s * (0.2 + r() * 0.8));
           b.codo.rotation.x = final ? -0.1 : -r() * 1.2;
         }
         ia.cuello.rotation.x = final ? -0.7 : -0.3 - r() * 0.6;
