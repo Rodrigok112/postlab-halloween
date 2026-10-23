@@ -177,9 +177,11 @@ export function crearMotor(contenedor) {
   escena.fog = new THREE.Fog(0x000000, 2.5, 15);
   const camara = new THREE.PerspectiveCamera(68, 1, 0.05, 60);
 
+  // El tamaño sale del contenedor (no de la ventana): en el móvil en vertical el juego va girado 90° y su
+  // contenedor es apaisado.
   const ajustar = () => {
-    const vw = Math.max(1, window.innerWidth);
-    const vh = Math.max(1, window.innerHeight);
+    const vw = Math.max(1, contenedor.clientWidth || window.innerWidth);
+    const vh = Math.max(1, contenedor.clientHeight || window.innerHeight);
     const k = LADO_CORTO / Math.min(vw, vh);
     const w = Math.max(1, Math.round(vw * k));
     const h = Math.max(1, Math.round(vh * k));

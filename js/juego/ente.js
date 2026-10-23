@@ -103,6 +103,14 @@ export const POSES = {
     ...REPOSO, ...columna(0.18), ...cuello(0.2), cabeza: [0.1, 0, 0],
     'brazo$': [0.6, 0, 1.1], 'codo1$': [-0.8, 0, 0], 'codo2$': [-0.5, 0, 0], 'dedos$': 1, boca: 1,
   }),
+  // Sentado en un sillón (final del psicólogo): cadera a la altura del asiento, muslos hacia delante, la espalda
+  // algo echada atrás; el brazo izquierdo en el reposabrazos y el derecho con el cigarrillo cerca de la boca.
+  sentado: pose({
+    ...REPOSO, altura: -0.67, ...columna(-0.03), ...cuello(0.12), cabeza: [0.05, 0, 0.12],
+    'muslo$': [-1.55, 0, 0.12], 'rodilla$': [1.55, 0, 0], 'tobillo$': [-1.2, 0, 0],
+    brazoI: [-0.45, 0, -0.35], codo1I: [-0.9, 0, 0], codo2I: [0.2, 0, 0], dedosI: 0.6,
+    brazoD: [-0.7, 0, 0.45], codo1D: [-1.8, 0, 0], codo2D: [-0.9, 0, 0], dedosD: 0.8,
+  }),
   // Se lanza: todo hacia delante, los brazos estirados para agarrarte.
   lanza: pose({
     ...REPOSO, ...columna(0.25), ...cuello(0.0), cabeza: [-0.2, 0, 0],

@@ -1,12 +1,12 @@
-// El segundo monstruo (la masa de manos): al final del primer tramo el pasillo sigue recto y desde el fondo
-// viene hacia ti desde que empiezas a correr. Si giras en la esquina antes de que llegue, se esfuma; si no,
-// te atrapa. Funciones puras (la posición es continua; quien la dibuja la hace saltar entre luces).
+// El segundo monstruo (la masa: varias IA fundidas): al fondo del pasillo que sigue recto tras su esquina
+// solo se ve una luz roja; cuando te faltan antesM metros para la esquina, sale corriendo a toda prisa. Si
+// giras antes de que llegue, se esfuma; si no, te atrapa. Funciones puras.
 // pos = metros que le faltan para llegar a la esquina (por el pasillo que sigue recto).
 
 export const ACECHO = {
-  antesM: 14, // sale cuando te faltan estos metros para su esquina (en la primera, desde el primer paso)
-  distanciaM: 37, // empieza a esta distancia de la esquina (fuera de la niebla: primero se oye)
-  vel: 5.25, // m/s: escapas por encima de unos 5,5 toques por segundo
+  antesM: 2.5, // sale cuando te faltan estos metros para su esquina
+  distanciaM: 38, // empieza a esta distancia de la esquina, donde está la luz roja
+  vel: 28, // m/s: llega en metro y medio de segundo; escapas por encima de unos 5,5 toques por segundo
   atrapaM: 0.8,
   giradoM: 0.3, // pasada la esquina por esto, ya has girado
 };

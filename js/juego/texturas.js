@@ -667,3 +667,42 @@ export function sombraEnte() {
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return t;
 }
+
+// ---------- Jardín del final bueno ----------
+
+// Césped: verde con briznas claras y oscuras y algo de tierra.
+export function cesped(rng, repetir) {
+  const [c, g] = lienzo(64, 64);
+  g.fillStyle = '#4f7a2e';
+  g.fillRect(0, 0, 64, 64);
+  foto(g, 'moqueta', 0, 0, 64, 64, { color: '#9fd06a', modo: 'multiply', alfa: 0.35 });
+  for (let i = 0; i < 260; i++) {
+    g.fillStyle = rng() < 0.5 ? '#6f9c3e' : '#3a5c20';
+    g.fillRect(Math.floor(rng() * 64), Math.floor(rng() * 64), 1, 2 + Math.floor(rng() * 2));
+  }
+  for (let i = 0; i < 3; i++) mancha(g, rng() * 64, rng() * 64, 3 + rng() * 3, rng, 'rgba(90,70,40,.35)');
+  return textura(c, repetir);
+}
+
+// Copa de árbol: hojas en manchas de verdes.
+export function hojas(rng) {
+  const [c, g] = lienzo(32, 32);
+  g.fillStyle = '#3d6a26';
+  g.fillRect(0, 0, 32, 32);
+  for (let i = 0; i < 10; i++) mancha(g, rng() * 32, rng() * 32, 2 + rng() * 3, rng, rng() < 0.5 ? '#5a8f34' : '#2c4d1b');
+  return textura(c);
+}
+
+// Halo de luz roja (de la masa): un degradado radial, para mezclarlo sumando.
+export function halo() {
+  const [c, g] = lienzo(32, 32);
+  const d = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  d.addColorStop(0, 'rgba(255,80,60,1)');
+  d.addColorStop(0.25, 'rgba(230,20,20,.8)');
+  d.addColorStop(1, 'rgba(120,0,0,0)');
+  g.fillStyle = d;
+  g.fillRect(0, 0, 32, 32);
+  const t = textura(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}

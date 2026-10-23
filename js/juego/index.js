@@ -20,8 +20,10 @@ import {
 } from './sonidos.js';
 import { thump, scream, screamQTV } from '../audio.js';
 import { createRng, createFlashGuard } from '../glitch.js';
-import { ahiEstas } from '../texts.js';
-import { cargarFotos, sombraEnte } from './texturas.js';
+import { ahiEstas, PSICOLOGO } from '../texts.js';
+import { crearConsulta, vestir, SOFA, SILLON, CENTRO as CENTRO_CONSULTA } from './consulta.js';
+import { cargarFotos, sombraEnte, halo } from './texturas.js';
+import { crearJardin, CENTRO as CENTRO_JARDIN } from './jardin.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
@@ -38,8 +40,6 @@ const PUERTA_CRUCE_X = -3.5;
 // Hacia dónde mira la cámara en el cruce (−x, de frente a la pared).
 const RUMBO_CRUCE = Math.PI / 2;
 // La masa salta entre luces mientras está lejos; más cerca de esto (m a la esquina) ya se mueve seguido.
-const MASA_CERCA_M = 9;
-const APAGON_MS = 220;
 // Golpes contra la puerta cerrada del cruce.
 const GOLPE_CADA_MS = [650, 1100];
 // La puerta del cruce revienta durante la carrera: duración de la escena (s).
@@ -85,6 +85,21 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   const capa = el('div', 'juego-capa');
   contenedor.append(capa);
   document.body.append(contenedor);
+  // En el móvil el juego va siempre en horizontal: si el navegador está en vertical (giro bloqueado, o aún sin
+  // girar el móvil), se dibuja girado 90° y se avisa de que gires el móvil. Va antes que el motor, que mide
+  // el contenedor al redimensionar.
+  const tactil = window.matchMedia('(pointer: coarse)').matches;
+  const orientar = () => {
+    const girado = tactil && window.innerHeight > window.innerWidth;
+    contenedor.classList.toggle('girado', girado);
+  };
+  orientar();
+  window.addEventListener('resize', orientar);
+  if (contenedor.classList.contains('girado')) {
+    const gira = el('p', 'juego-gira', '⟳ gira el móvil');
+    capa.append(gira);
+    setTimeout(() => gira.remove(), 3500);
+  }
   await Promise.all([document.fonts.load('44px "Rubik Wet Paint"').catch(() => {}), cargarFotos()]);
 
   const motor = crearMotor(contenedor);
@@ -124,6 +139,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
   const cerrar = () => {
     apagado = true;
+    window.removeEventListener('resize', orientar);
     cancelAnimationFrame(raf);
     timers.forEach(clearTimeout);
     quitarInput.forEach((fn) => fn());
@@ -134,11 +150,10 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     contenedor.remove();
   };
 
-  const pantallaFinal = (titulo, clase, toques, boton, alPulsar) => {
+  const pantallaFinal = (titulo, clase, boton, alPulsar) => {
     capa.replaceChildren();
     const fin = el('div', `juego-final ${clase}`);
     fin.append(el('h1', 'juego-titulo', titulo));
-    if (toques !== null) fin.append(el('p', 'juego-toques', `${toques} toques`));
     const b = el('button', 'otra-vez', boton);
     b.type = 'button';
     b.addEventListener('click', alPulsar);
@@ -173,6 +188,22 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // Brazos de pared que se reutilizan durante la carrera.
   const brazosPared = [11, 22, 33, 44, 55, 66].map((semilla) => crearBrazoPared(semilla));
   for (const b of brazosPared) { b.grupo.visible = false; escena.add(b.grupo); }
+  // La luz roja de la masa, al fondo de su pasillo: un núcleo y un halo grande que siempre mira a la cámara (se
+  // ve a lo lejos, sin niebla). La masa lleva el mismo halo cuando corre: la luz roja es ella.
+  const crearHalo = (tam) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(tam, tam), materialBrillo({
+      map: halo(), fog: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    m.renderOrder = 3;
+    return m;
+  };
+  const luzRoja = new THREE.Group();
+  luzRoja.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 4), materialBrillo({ color: 0xff3020, fog: false })), crearHalo(2.6));
+  luzRoja.visible = false;
+  escena.add(luzRoja);
+  const haloMasa = crearHalo(2.4);
+  haloMasa.position.set(0, 1.3, 0.4);
+  masa.grupo.add(haloMasa);
   // La sombra del ente en la pared cuando se te acerca.
   const sombra = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 2.4),
     materialBrillo({ map: sombraEnte(), color: 0x000000, transparent: true, depthWrite: false, opacity: 0 }));
@@ -376,7 +407,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         pararSonidos();
         motor.glitch(0);
         negro(true);
-        pantallaFinal('HAS MUERTO', 'muerte-juego', null, 'otra vez', () => { cerrar(); reiniciar(); });
+        pantallaFinal('HAS MUERTO', 'muerte-juego', 'otra vez', () => { cerrar(); reiniciar(); });
       } else {
         elegir();
       }
@@ -436,6 +467,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     ente.cabezaHacia(0);
     for (const b of brazosPared) b.grupo.visible = false;
     sombra.visible = false;
+    luzRoja.visible = false;
     glitchHab.restaurar();
     glitchCruce.restaurar();
     hab.rehacerIzquierda();
@@ -469,7 +501,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       capa.replaceChildren();
       hab.estallar('izquierda');
       portazo();
-      escenaMuerte({ quien: 'ente', x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE + Math.PI, toques: null });
+      escenaMuerte({ quien: 'ente', x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE + Math.PI });
     }, ELEGIR_S * 1000);
     timers.push(plazo);
 
@@ -500,7 +532,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   }
 
   function correr(lado) {
-    const { recorrido: rec, luzMeta, estaciones } = pasillos.caminos[lado];
+    const { recorrido: rec, luzMeta } = pasillos.caminos[lado];
     luces.punto(L_META, luzMeta, 0xffffff, 2.5, 9);
     let c = createCarrera(rec.largo);
     let acecho = crearAcecho(rec.esquinaRecto);
@@ -539,40 +571,28 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     };
     quitarInput.push(quitarToques);
 
-    // ----- La masa: salta de luz en luz mientras está lejos; cerca, avanza seguida -----
-    let estacion = null; // estación donde se la ve ahora
-    let apagonHasta = 0;
-    const encenderTodas = () => estaciones.forEach((e) => pasillos.luz(e.malla, true));
-    const posarMasa = (ahora) => {
-      if (acecho.estado !== 'corre' && acecho.estado !== 'esquivado') return;
-      if (acecho.pos > MASA_CERCA_M) {
-        const destino = estaciones.find((e) => e.r >= acecho.pos) ?? estaciones.at(-1);
-        if (destino !== estacion && ahora >= apagonHasta) {
-          // Apagón: se apagan la luz donde estaba y la siguiente, desaparece y reaparece más cerca.
-          if (estacion) pasillos.luz(estacion.malla, false);
-          pasillos.luz(destino.malla, false);
-          masa.grupo.visible = false;
-          luces.apagar(L_MASA);
-          const anterior = estacion;
-          estacion = destino;
-          apagonHasta = ahora + APAGON_MS;
-          later(() => {
-            if (anterior) pasillos.luz(anterior.malla, true);
-            pasillos.luz(destino.malla, true);
-          }, APAGON_MS);
-        }
-        if (ahora < apagonHasta) return;
-        const q = rec.recto(estacion.r);
-        masa.grupo.visible = true;
-        masa.grupo.position.set(q.x, 0, q.z);
-        luces.punto(L_MASA, [q.x, 2.3, q.z], 0xfff0c0, 1.6, 4.5);
-      } else {
-        const q = rec.recto(acecho.pos);
-        masa.grupo.visible = true;
-        masa.grupo.position.set(q.x, 0, q.z);
-        luces.punto(L_MASA, [q.x, 2.0, q.z], 0xff2a1a, 1.2, 4);
+    // ----- La masa: al fondo del pasillo sin salida solo se ve su luz roja; al salir, corre a toda prisa -----
+    const posarMasa = () => {
+      const fondo = rec.recto(rec.sigueRecto - 1);
+      if (acecho.estado === 'espera') {
+        // La luz roja, quieta al fondo, en cuanto entras en el tramo que lleva a su esquina.
+        const visible = c.jugador > acecho.esquina - 16;
+        luzRoja.visible = visible;
+        luzRoja.position.set(fondo.x, 1.5, fondo.z);
+        luzRoja.children[1].lookAt(camara.position);
+        luzRoja.children[1].scale.setScalar(0.85 + rng() * 0.3); // parpadea un poco
+        if (visible) luces.punto(L_MASA, [fondo.x, 1.6, fondo.z], 0xff2010, 2.0, 6);
+        return;
       }
+      luzRoja.visible = false;
+      if (acecho.estado !== 'corre' && acecho.estado !== 'esquivado') return;
+      const q = rec.recto(acecho.pos);
+      masa.grupo.visible = true;
+      masa.grupo.position.set(q.x, 0, q.z);
       masa.grupo.rotation.y = r0;
+      haloMasa.visible = true;
+      haloMasa.lookAt(camara.position);
+      luces.punto(L_MASA, [q.x, 2.0, q.z], 0xff2a1a, 2.2, 5);
     };
 
     // ----- Brazos de la pared: salen delante de ti; si pasas despacio, te agarran -----
@@ -743,11 +763,16 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         c = update(c, dt);
         const antes = acecho.estado;
         acecho = actualizarAcecho(acecho, c.jugador, dt);
-        if (antes === 'espera' && acecho.estado === 'corre') { scream(0.4, 'puerta'); arrastre = crearArrastre(); }
+        if (antes === 'espera' && acecho.estado === 'corre') {
+          // Sale disparada: grito de todas a la vez y sus pasos encima.
+          scream(0.9, 'abierto');
+          sacudir(0.8, 400);
+          arrastre = crearArrastre();
+          arrastre.setCercania(1);
+        }
         if (acecho.estado === 'fuera' && antes !== 'fuera') {
           masa.grupo.visible = false;
           luces.apagar(L_MASA);
-          encenderTodas();
           arrastre?.parar();
           arrastre = null;
         }
@@ -781,8 +806,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (ticMasa !== ultimoTicMasa) {
         ultimoTicMasa = ticMasa;
         for (const a of brazos) a.b.tic(rng);
-        posarMasa(ahora);
-        if (masa.grupo.visible) masa.animar(ticMasa * 1.4, rng);
+        posarMasa();
+        if (masa.grupo.visible) masa.animar(ticMasa * 2.2, rng);
         const hueco = (acecho.esquina - c.jugador) + (acecho.pos ?? ACECHO.distanciaM);
         arrastre?.setCercania(1 - Math.min(1, hueco / 30));
       }
@@ -797,32 +822,33 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       motor.render();
       const limpiar = () => {
         quitarToques();
+        luzRoja.visible = false;
         aviso.remove();
         sombra.visible = false;
         for (const a of brazos) a.b.grupo.visible = false;
       };
       if (acecho.estado === 'atrapa') {
         limpiar();
-        escenaMuerte({ quien: 'masa', x: p.x, z: p.z, yaw: p.rumbo, toques: c.toques });
+        escenaMuerte({ quien: 'masa', x: p.x, z: p.z, yaw: p.rumbo });
         return;
       }
       if (c.estado === 'atrapado') {
         limpiar();
         // Te das la vuelta: el ente viene por detrás.
-        escenaMuerte({ quien: 'ente', x: p.x, z: p.z, yaw: p.rumbo + Math.PI, toques: c.toques });
+        escenaMuerte({ quien: 'ente', x: p.x, z: p.z, yaw: p.rumbo + Math.PI });
         return;
       }
-      if (c.estado === 'escapado') { quitarToques(); escapar(c); return; }
+      if (c.estado === 'escapado') { limpiar(); escapar(); return; }
       raf = requestAnimationFrame(bucle);
     };
     raf = requestAnimationFrame(bucle);
   }
 
-  const terminarMuerte = (toques) => {
+  const terminarMuerte = () => {
     pararSonidos();
     golpeando = false;
     negro(true);
-    pantallaFinal('HAS MUERTO', 'muerte-juego', toques, 'repetir', () => elegir());
+    pantallaFinal('HAS MUERTO', 'muerte-juego', 'repetir', () => elegir());
   };
 
   const vibrar = () => {
@@ -832,7 +858,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
   // Muerte en escena (ente o masa): negro; miras hacia él (yaw) y, entre apagones, reaparece cada vez más cerca
   // y en otra pose, como a saltos, hasta tenerlo encima: susto y grito. Los apagones son oscuridad, no destellos.
-  function escenaMuerte({ quien, x, z, yaw, toques }) {
+  function escenaMuerte({ quien, x, z, yaw }) {
     const dir = [-Math.sin(yaw), -Math.cos(yaw)];
     const colocar = (dist, k) => {
       const final = k === 'final';
@@ -857,8 +883,10 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         const px = x + dir[0] * (dist + 0.34);
         const pz = z + dir[1] * (dist + 0.34);
         masa.grupo.visible = true;
-        masa.grupo.position.set(px, final ? 0.3 : 0, pz);
+        haloMasa.visible = false; // de cerca, el halo taparía las caras
+        masa.grupo.position.set(px, 0, pz);
         masa.grupo.rotation.y = Math.atan2(x - px, z - pz);
+        masa.posar(k, rng);
       }
     };
     vibrar();
@@ -892,7 +920,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (tic !== ultimoTicM) {
         ultimoTicM = tic;
         if (quien === 'ente') motor.glitch(ente.tic(rng, 1) ? 1 : 0);
-        else motor.glitch(masa.animar(tic * 1.6, rng) ? 1 : 0);
+        else motor.glitch(masa.posar(aparicion >= DISTANCIAS_MUERTE.length || grito ? 'final' : Math.max(0, aparicion), rng) ? 1 : 0);
       }
       aplicarSacudida(ahora);
       motor.render();
@@ -901,29 +929,103 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       ente.grupo.visible = false;
       masa.grupo.visible = false;
       luces.apagar(L_MASA);
-      terminarMuerte(toques);
+      terminarMuerte();
     };
     raf = requestAnimationFrame(bucleM);
   }
 
-  // Llegas: flash blanco, el jardín y «HAS ESCAPADO».
-  function escapar(c) {
+  // Llegas: flash blanco y apareces en el jardín (3D, mismo estilo); la cámara mira alrededor despacio y sale
+  // «HAS ESCAPADO».
+  function escapar() {
     pararSonidos();
     golpeando = false;
     thump(0.6);
     capa.replaceChildren(el('div', 'juego-flash'));
     later(() => {
-      negro(true);
-      pantallaFinal('HAS ESCAPADO', 'escapado', c.toques, 'otra vez', () => { cerrar(); reiniciar(); });
-      capa.prepend(el('div', 'jardin'));
+      const jardin = crearJardin(rng);
+      escena.add(jardin.grupo);
+      jardin.encender(escena);
+      ente.grupo.visible = false;
+      masa.grupo.visible = false;
+      motor.glitch(0);
+      capa.replaceChildren();
+      later(() => pantallaFinal('HAS ESCAPADO', 'escapado', 'otra vez', () => { cerrar(); reiniciar(); }), 1800);
+      const inicio = performance.now();
+      const paseo = (ahora) => {
+        if (apagado) return;
+        const t = (ahora - inicio) / 1000;
+        camaraEn(CENTRO_JARDIN.x, CENTRO_JARDIN.z + 3 - Math.min(t, 6) * 0.25, Math.sin(t * 0.25) * 0.35, 0.05);
+        motor.render();
+        raf = requestAnimationFrame(paseo);
+      };
+      raf = requestAnimationFrame(paseo);
     }, 700);
   }
 
   // Para depurar desde la consola cuando se entra por un atajo de prueba.
   if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, masa, mano, camara, escena, hab, pasillos };
 
-  // Atajo de prueba #juego-cruce: salta la habitación.
+  // Final del psicólogo: negro; estás sentado en el sofá de una consulta; giras la cabeza y el ente está en el
+  // sillón de al lado, con sombrero y cigarrillo: «{nombre}, hablemos un poco de tu vida». Luego, a negro:
+  // «vete al psicólogo».
+  function psicologo() {
+    const consulta = crearConsulta(rng);
+    escena.add(consulta.grupo);
+    consulta.encender(escena);
+    fondo.volumen(0.4);
+    const sofa = SOFA.clone().add(CENTRO_CONSULTA);
+    const sillon = SILLON.clone().add(CENTRO_CONSULTA);
+    ente.grupo.visible = true;
+    ente.grupo.position.copy(sillon).add(new THREE.Vector3(0, 0.05, 0));
+    ente.grupo.rotation.y = Math.atan2(sofa.x - sillon.x, sofa.z - sillon.z);
+    ente.pose('sentado');
+    const humo = vestir(ente, camara, escena);
+    const cabezaMundo = new THREE.Vector3();
+    const objetivo = new THREE.Vector3(sofa.x, 1.0, sofa.z - 3);
+    const alFrente = objetivo.clone();
+    negro(true);
+    const inicio = performance.now();
+    let hablo = false;
+    let cerrado = false;
+    let proximoTic = 0;
+    const bucleP = (ahora) => {
+      if (apagado) return;
+      const t = (ahora - inicio) / 1000;
+      if (t >= 1.2) negro(false);
+      // Tic tac del reloj.
+      if (ahora > proximoTic) { thump(0.05); proximoTic = ahora + 1000; }
+      ente.cabeza.getWorldPosition(cabezaMundo);
+      // Mira al frente; a los 2,5 s gira despacio la cabeza hacia el sillón.
+      const u = smooth((t - 2.5) / 2.0);
+      objetivo.copy(alFrente).lerp(cabezaMundo, u);
+      camara.position.copy(sofa);
+      camara.lookAt(objetivo);
+      // El ente gira la cabeza hacia ti cuando lo miras, y habla.
+      ente.cabezaHacia(-0.6 * smooth((t - 4.3) / 0.6));
+      if (!hablo && t >= 5.0) { hablo = true; hablar(PSICOLOGO.frase(nombre)); }
+      const tic = Math.floor(t * FPS_MONSTRUO);
+      if (tic !== ultimoTic) {
+        ultimoTic = tic;
+        motor.glitch(ente.tic(rng, t > 5 ? 1 : 0) ? 1 : 0);
+        humo.tic(t, rng);
+      }
+      motor.render();
+      if (t >= 9.6 && !cerrado) {
+        cerrado = true;
+        callar();
+        motor.glitch(0);
+        negro(true);
+        pantallaFinal(PSICOLOGO.cierre, 'psicologo-fin', 'otra vez', () => { cerrar(); reiniciar(); });
+        return;
+      }
+      raf = requestAnimationFrame(bucleP);
+    };
+    raf = requestAnimationFrame(bucleP);
+  }
+
+  // Atajos de prueba #juego-cruce (salta la habitación) y el final del psicólogo.
   if (camino === 'cruce') { elegir(); return; }
+  if (camino === 'psicologo') { psicologo(); return; }
   raf = requestAnimationFrame(bucleHabitacion);
 }
 

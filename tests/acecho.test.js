@@ -16,10 +16,12 @@ function simular(vel) {
   return a;
 }
 
-test('la masa está al fondo desde que empiezas a correr, lejos, para que se la vea venir', () => {
+test('la masa espera al fondo (una luz roja) hasta que te faltan 2,5 m para la esquina; entonces corre a toda prisa', () => {
   assert.ok(ACECHO.distanciaM >= 35);
-  const b = actualizarAcecho(crearAcecho(ESQUINA), 0, 0.016);
-  assert.equal(b.estado, 'corre');
+  assert.equal(ACECHO.antesM, 2.5);
+  assert.ok(ACECHO.vel >= 25, 'a toda prisa');
+  assert.equal(actualizarAcecho(crearAcecho(ESQUINA), ESQUINA - 2.6, 0.016).estado, 'espera');
+  assert.equal(actualizarAcecho(crearAcecho(ESQUINA), ESQUINA - 2.5, 0.016).estado, 'corre');
 });
 
 test('difícil: a 5,8 toques/s giras antes de que llegue y se esfuma en la esquina', () => {
@@ -37,7 +39,7 @@ test('en una esquina lejana (camino derecho) no sale hasta que te acercas a ella
 });
 
 test('un salto de tiempo enorme avanza como mucho 0,1 s', () => {
-  const a = actualizarAcecho(crearAcecho(ESQUINA), 0, 0.01);
-  const b = actualizarAcecho(a, 0, 30);
+  const a = actualizarAcecho(crearAcecho(ESQUINA), ESQUINA - 2.5, 0.01);
+  const b = actualizarAcecho(a, ESQUINA - 2.5, 30);
   assert.ok(a.pos - b.pos <= ACECHO.vel * 0.1 + 1e-9);
 });

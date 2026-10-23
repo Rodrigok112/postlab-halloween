@@ -91,7 +91,6 @@ export function crearPasillos(rng) {
 
   // ---------- Los dos caminos ----------
   const caminos = {};
-  const estaciones = {};
   const texturas = PALABRAS.map((p) => tex.grafiti(p, rng));
   const mats = texturas.map((t) => materialPS1({ map: t, transparent: true, alphaTest: 0.3, depthWrite: false }));
 
@@ -122,11 +121,8 @@ export function crearPasillos(rng) {
         losa(esq.x, esq.z, ANCHO, s.rumbo, ALTO, cielo, false);
         pared(esq.x - dSig.x * ANCHO / 2, esq.z - dSig.y * ANCHO / 2, ANCHO, dSig.x, dSig.y);
         if (i === rec.tramoRecto) {
-          // Sigue recto: pasillo sin salida por donde viene el segundo monstruo. Sus fluorescentes, con su
-          // distancia a la esquina, son las «estaciones» entre las que salta la masa.
-          const antes = tubos.length;
+          // Sigue recto: pasillo sin salida por donde viene el segundo monstruo.
           tramoRecto(s, d, s.largo + ANCHO / 2, s.largo + rec.sigueRecto, s.rumbo);
-          estaciones[nombre] = tubos.slice(antes).map((malla, k) => ({ malla, r: ANCHO / 2 + 1.5 + k * FLUORESCENTE_CADA_M }));
           const fondo = rec.recto(rec.sigueRecto);
           pared(fondo.x, fondo.z, ANCHO, -d.x, -d.y);
         } else {
@@ -161,7 +157,7 @@ export function crearPasillos(rng) {
       m.renderOrder = 1;
       grupo.add(m);
     }
-    caminos[nombre] = { recorrido: rec, luzMeta: [fin.x - dFin.x * 1.2, 1.4, fin.z - dFin.y * 1.2], estaciones: estaciones[nombre] };
+    caminos[nombre] = { recorrido: rec, luzMeta: [fin.x - dFin.x * 1.2, 1.4, fin.z - dFin.y * 1.2] };
   }
 
   hornear(grupo, (p, n, l, malla) => malla.userData.sombra?.(l, p) ?? 1);
@@ -172,8 +168,6 @@ export function crearPasillos(rng) {
     // La pared de la puerta del cruce, vista desde el cruce (para romperla con glitch cuando el ente la revienta).
     paredCruce,
     // Un fluorescente al azar parpadea (lo llama el bucle, como mucho 2 veces por segundo).
-    // Enciende (true) o apaga un fluorescente concreto.
-    luz(malla, encendida) { malla.material = encendida ? tubo : tuboApagado; },
     parpadeo(rng2) {
       const m = tubos[Math.floor(rng2() * tubos.length)];
       m.material = m.material === tubo ? tuboApagado : tubo;

@@ -257,8 +257,8 @@ function start() {
 makeDither();
 start();
 
-// Atajo de prueba: #juego-final2, #juego-pasillo o #juego-cruce salta la encuesta y abre el juego directamente.
-const atajo = /^#juego-(final2|pasillo|cruce)$/.exec(window.location.hash);
+// Atajo de prueba: #juego-final2, #juego-pasillo, #juego-cruce o #juego-psicologo salta la encuesta y abre el juego.
+const atajo = /^#juego-(final2|pasillo|cruce|psicologo)$/.exec(window.location.hash);
 if (atajo) {
   juegoListo.then(() => {
     const alFallar = () => renderMuerte(app, start);

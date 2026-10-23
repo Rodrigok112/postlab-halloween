@@ -369,14 +369,6 @@ body.nivel-5 .si-media { border-radius: 0; }
 /* Flash blanco al cruzar la puerta: un solo destello que se queda en blanco. */
 .juego-flash { position: absolute; inset: 0; background: #fff; animation: flash .6s ease-out both; }
 @keyframes flash { from { opacity: 0; } to { opacity: 1; } }
-/* Jardín provisional (hasta elegir la foto): cielo, sol, césped. */
-.jardin {
-  position: absolute; inset: 0;
-  background:
-    radial-gradient(circle at 75% 22%, #fffbe0 0 6%, rgba(255, 251, 224, .0) 14%),
-    linear-gradient(#cfe8f2 0 58%, #7fae4f 58% 70%, #5d8f37 70%);
-  image-rendering: pixelated;
-}
 
 /* «ahí estás, {nombre}»: letra a letra, abajo, en rojo. */
 .juego-dialogo {
@@ -412,3 +404,21 @@ body.nivel-5 .si-media { border-radius: 0; }
   color: #e0141c; text-shadow: 3px 3px 0 #000;
   animation: aviso .35s steps(1) infinite;
 }
+
+/* Juego en horizontal en el móvil: si el navegador está en vertical, el juego se gira 90°. */
+.juego.girado {
+  inset: auto; top: 0; left: 0;
+  width: 100vh; height: 100vw;
+  width: 100dvh; height: 100dvw; /* sin la barra del navegador, donde se pueda */
+  transform-origin: top left;
+  transform: rotate(90deg) translateY(-100%);
+}
+.juego-gira {
+  position: absolute; left: 0; right: 0; top: 12%;
+  margin: 0; text-align: center;
+  font-size: clamp(24px, 6vw, 40px); color: #fff6d8; text-shadow: 2px 2px 0 #000;
+  animation: aviso 1s steps(1) infinite;
+}
+
+/* Final del psicólogo: «vete al psicólogo», tranquilo, en pixel. */
+.psicologo-fin .juego-titulo { font-size: clamp(40px, 12vw, 96px); color: #e9e2c8; font-weight: 400; }
