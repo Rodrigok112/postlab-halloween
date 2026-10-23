@@ -61,7 +61,8 @@ test('final 2: tras salir, una pausa y se lanza rápido a la cámara: susto y gr
   const quieto = ENTE.final2.filter((k) => k.t < lanza).at(-1).t;
   assert.ok(lanza - quieto >= 0.4, 'pausa antes');
   const encima = ENTE.final2.find((k) => k.t > lanza);
-  assert.ok(encima.t - lanza <= 0.5 && encima.pos[0] < 2, 'rápido y hasta tu cara');
+  // Los pies a 2 m bastan: inclinado, su cara queda 1,6 m por delante de ellos, a un palmo de la tuya.
+  assert.ok(encima.t - lanza <= 0.5 && encima.pos[0] <= 2.05, 'rápido y hasta tu cara');
   assert.ok(cuando('final2', 'grito') >= lanza);
 });
 
