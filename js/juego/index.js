@@ -12,7 +12,7 @@ import { crearPasillos } from './pasillo.js';
 import { CAMARA, ENTE, ACCIONES, DURACION, MANO, ZOOM, ENTRADA_GLITCH_S, MOMENTOS } from './escenas.js';
 import { muestrear, valorEn } from './linea.js';
 import { CRUCE } from './recorrido.js';
-import { createCarrera, tap, update, soltar, agarrar, distancia, PUERTA_M } from './carrera.js';
+import { createCarrera, tap, update, soltar, agarrar, distancia, PUERTA_M, AGARRE_TOQUES } from './carrera.js';
 import { crearAcecho, actualizarAcecho, ACECHO } from './acecho.js';
 import {
   portazo, paso, crearCoro, astillazo, voz, crearArrastre, crearFondo, crearZumbido, pasoMetal, chirrido,
@@ -24,6 +24,7 @@ import { ahiEstas, PSICOLOGO } from '../texts.js';
 import { crearConsulta, vestir, SOFA, SILLON, CENTRO as CENTRO_CONSULTA } from './consulta.js';
 import { cargarFotos, sombraEnte, halo } from './texturas.js';
 import { crearJardin, CENTRO as CENTRO_JARDIN } from './jardin.js';
+import { crearIndicacion, crearAgarre, onda, aLocal } from './gesto.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
@@ -546,8 +547,10 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     let ultimoTicMasa = -1;
     let proximoGrito = 0;
     const toquesRecientes = [];
-    capa.replaceChildren(el('p', 'juego-aviso', 'TOCA PARA CORRER'));
-    const aviso = el('p', 'juego-agarre');
+    capa.replaceChildren();
+    const indicacion = crearIndicacion(tactil);
+    indicacion.mostrar(capa);
+    const aviso = crearAgarre(tactil, AGARRE_TOQUES);
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
     capa.append(ojos);
@@ -556,12 +559,16 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (ev.type === 'keydown' && ev.code !== 'Space') return;
       if (ev.type === 'keydown') ev.preventDefault();
       if (c.estado !== 'corriendo' || pausa) return;
-      if (!empezado) { empezado = true; capa.querySelector('.juego-aviso')?.remove(); ultimo = performance.now(); }
+      if (!empezado) { empezado = true; indicacion.quitar(); ultimo = performance.now(); }
       const agarrado = c.agarre > 0;
       c = tap(c);
       toquesRecientes.push(performance.now());
       balanceo = agarrado ? 0.4 : 1;
-      if (agarrado) { sacudir(0.5, 120); aviso.textContent = `¡SUÉLTATE! ${c.agarre}`; } else paso();
+      if (ev.type === 'pointerdown') {
+        const q = aLocal(ev.clientX, ev.clientY, contenedor.classList.contains('girado'), contenedor.clientHeight);
+        onda(capa, q.x, q.y, agarrado);
+      }
+      if (agarrado) { sacudir(0.5, 120); aviso.poner(c.agarre); } else paso();
     };
     contenedor.addEventListener('pointerdown', alTocar);
     window.addEventListener('keydown', alTocar);
@@ -656,11 +663,11 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
             golpePuerta(0.6);
             sacudir(1.2, 400);
             vibrar();
-            aviso.textContent = `¡SUÉLTATE! ${c.agarre}`;
-            capa.append(aviso);
+            aviso.poner(c.agarre);
+            aviso.mostrar(capa);
           } else if (c.jugador > a.d + 1.0) { a.estado = 'vuelve'; a.desde = ahora; }
         } else if (a.estado === 'agarra') {
-          if (c.agarre === 0) { a.estado = 'vuelve'; a.desde = ahora; aviso.remove(); }
+          if (c.agarre === 0) { a.estado = 'vuelve'; a.desde = ahora; aviso.quitar(); }
         } else {
           a.b.salir(1 - (ahora - a.desde) / 400);
           if (ahora - a.desde > 400) { a.b.grupo.visible = false; brazos.splice(i, 1); }
@@ -823,7 +830,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const limpiar = () => {
         quitarToques();
         luzRoja.visible = false;
-        aviso.remove();
+        aviso.quitar();
+        indicacion.quitar();
         sombra.visible = false;
         for (const a of brazos) a.b.grupo.visible = false;
       };
