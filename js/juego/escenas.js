@@ -33,17 +33,24 @@ export const CAMARA = {
   pasillo: [
     ...CAMARA_COMUN,
     { t: 18.2, pos: SENTADO_GIRADO.pos, mira: CARA_EN_MARCO },
+    // Se levanta y se gira hacia la puerta izquierda pasando por el escritorio (los giros de 180° llevan una
+    // clave en medio para que vayan por el lado que toca).
+    { t: 18.55, pos: [-0.15, 1.45, 0.15], mira: [-0.6, 1.4, -1.5] },
     { t: 18.9, pos: [-0.3, 1.6, 0.25], mira: [-3.5, 1.45, 0.35] },
     { t: 20.3, pos: [-2.9, 1.6, 0.35], mira: [-5.1, 1.5, 0.35] },
-    { t: 20.8, pos: CRUCE, mira: [-5.5, 1.55, 0.35] },
-    // Se gira hacia la habitación y cierra la puerta (al fondo, el ente viniendo).
+    { t: 20.8, pos: CRUCE, mira: [-5.8, 1.55, 0.35] },
+    // Se gira hacia la habitación (por la derecha) y cierra la puerta, con el ente viniendo al fondo.
+    { t: 21.05, pos: CRUCE, mira: [-4.3, 1.55, -1.2] },
     { t: 21.3, pos: CRUCE, mira: [-2.0, 1.5, 0.35] },
     { t: 21.9, pos: CRUCE, mira: [-2.0, 1.5, 0.35] },
-    { t: 22.4, pos: CRUCE, mira: [-5.5, 1.55, 0.35] },
-    // Mira a la izquierda (+z) y a la derecha (−z) y vuelve al frente.
-    { t: 23.1, pos: CRUCE, mira: [-4.3, 1.55, 3] },
-    { t: 23.8, pos: CRUCE, mira: [-4.3, 1.55, -2.3] },
-    { t: 24.3, pos: CRUCE, mira: [-5.5, 1.55, 0.35] },
+    // Vuelve al frente (la pared del CORRE) por el mismo lado.
+    { t: 22.15, pos: CRUCE, mira: [-4.3, 1.55, -1.2] },
+    { t: 22.4, pos: CRUCE, mira: [-5.8, 1.55, 0.35] },
+    // Mira a la izquierda (+z), vuelve al frente, mira a la derecha (−z) y vuelve al frente: nunca a la puerta.
+    { t: 23.0, pos: CRUCE, mira: [-4.3, 1.55, 2.4] },
+    { t: 23.4, pos: CRUCE, mira: [-5.8, 1.55, 0.35] },
+    { t: 24.0, pos: CRUCE, mira: [-4.3, 1.55, -1.7] },
+    { t: 24.3, pos: CRUCE, mira: [-5.8, 1.55, 0.35] },
   ],
 };
 
