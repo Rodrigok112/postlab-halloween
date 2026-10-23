@@ -4,7 +4,7 @@
 // pos = metros que le faltan para llegar a la esquina (por el pasillo que sigue recto).
 
 export const ACECHO = {
-  apareceM: 0, // está ahí desde el primer paso
+  antesM: 14, // sale cuando te faltan estos metros para su esquina (en la primera, desde el primer paso)
   distanciaM: 37, // empieza a esta distancia de la esquina (fuera de la niebla: primero se oye)
   vel: 5.25, // m/s: escapas por encima de unos 5,5 toques por segundo
   atrapaM: 0.8,
@@ -19,7 +19,7 @@ export function crearAcecho(esquina) {
 export function actualizarAcecho(a, jugador, dtS) {
   const dt = Math.max(0, Math.min(dtS, DT_MAX_S));
   if (a.estado === 'espera') {
-    return jugador >= ACECHO.apareceM ? { ...a, estado: 'corre', pos: ACECHO.distanciaM } : a;
+    return jugador >= a.esquina - ACECHO.antesM ? { ...a, estado: 'corre', pos: ACECHO.distanciaM } : a;
   }
   if (a.estado !== 'corre' && a.estado !== 'esquivado') return a;
   const pos = a.pos - ACECHO.vel * dt;

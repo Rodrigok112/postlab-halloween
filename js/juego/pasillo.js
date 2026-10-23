@@ -83,9 +83,11 @@ export function crearPasillos(rng) {
   // Pared de la puerta, vista desde el cruce: dos trozos a los lados y el dintel.
   const xp = CRUCE.x + ANCHO / 2;
   const zA = CRUCE.z - ANCHO / 2, zB = CRUCE.z + ANCHO / 2;
-  pared(xp, (zA + PUERTA.z0) / 2, PUERTA.z0 - zA, -1, 0);
-  pared(xp, (PUERTA.z1 + zB) / 2, zB - PUERTA.z1, -1, 0);
-  pared(xp, (PUERTA.z0 + PUERTA.z1) / 2, PUERTA.z1 - PUERTA.z0, -1, 0, ALTO - PUERTA.alto, (ALTO + PUERTA.alto) / 2);
+  const paredCruce = [
+    pared(xp, (zA + PUERTA.z0) / 2, PUERTA.z0 - zA, -1, 0),
+    pared(xp, (PUERTA.z1 + zB) / 2, zB - PUERTA.z1, -1, 0),
+    pared(xp, (PUERTA.z0 + PUERTA.z1) / 2, PUERTA.z1 - PUERTA.z0, -1, 0, ALTO - PUERTA.alto, (ALTO + PUERTA.alto) / 2),
+  ];
 
   // ---------- Los dos caminos ----------
   const caminos = {};
@@ -109,7 +111,7 @@ export function crearPasillos(rng) {
     const rec = crearRecorrido(ruta);
     rec.segmentos.forEach((s, i) => {
       const d = dirDe(s.rumbo);
-      const ini = i === 0 ? ANCHO / 2 : ANCHO / 2;
+      const ini = ANCHO / 2;
       const fin = i === rec.segmentos.length - 1 ? s.largo : s.largo - ANCHO / 2;
       tramoRecto(s, d, ini, fin, s.rumbo);
       if (i < rec.segmentos.length - 1) {
@@ -119,13 +121,13 @@ export function crearPasillos(rng) {
         losa(esq.x, esq.z, ANCHO, s.rumbo, 0, suelo, true);
         losa(esq.x, esq.z, ANCHO, s.rumbo, ALTO, cielo, false);
         pared(esq.x - dSig.x * ANCHO / 2, esq.z - dSig.y * ANCHO / 2, ANCHO, dSig.x, dSig.y);
-        if (i === 0) {
+        if (i === rec.tramoRecto) {
           // Sigue recto: pasillo sin salida por donde viene el segundo monstruo. Sus fluorescentes, con su
           // distancia a la esquina, son las «estaciones» entre las que salta la masa.
           const antes = tubos.length;
-          tramoRecto(s, d, s.largo + ANCHO / 2, s.largo + ruta.sigueRecto, s.rumbo);
+          tramoRecto(s, d, s.largo + ANCHO / 2, s.largo + rec.sigueRecto, s.rumbo);
           estaciones[nombre] = tubos.slice(antes).map((malla, k) => ({ malla, r: ANCHO / 2 + 1.5 + k * FLUORESCENTE_CADA_M }));
-          const fondo = rec.recto(ruta.sigueRecto);
+          const fondo = rec.recto(rec.sigueRecto);
           pared(fondo.x, fondo.z, ANCHO, -d.x, -d.y);
         } else {
           pared(esq.x + d.x * ANCHO / 2, esq.z + d.y * ANCHO / 2, ANCHO, -d.x, -d.y);
@@ -167,6 +169,8 @@ export function crearPasillos(rng) {
   return {
     grupo,
     caminos,
+    // La pared de la puerta del cruce, vista desde el cruce (para romperla con glitch cuando el ente la revienta).
+    paredCruce,
     // Un fluorescente al azar parpadea (lo llama el bucle, como mucho 2 veces por segundo).
     // Enciende (true) o apaga un fluorescente concreto.
     luz(malla, encendida) { malla.material = encendida ? tubo : tuboApagado; },

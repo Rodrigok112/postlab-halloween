@@ -144,3 +144,7 @@ export const ACCIONES = {
     { t: 21.9, que: 'golpes' },
   ],
 };
+
+// Instantes que el juego necesita para elegir la pose base del ente: sale de la puerta (SALE, durante
+// SALIDA_S s con las poses de la entrada), se lanza en el final 2 (LANZA) o te persigue en el pasillo (HUYE).
+export const MOMENTOS = { SALE, SALIDA_S: 3.4, LANZA, HUYE: 18.2 };

@@ -648,3 +648,22 @@ export function agujeroPared(rng) {
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return t;
 }
+
+// Sombra del ente proyectada en la pared: silueta altísima y flaca, cabeza alargada y brazos hasta el suelo,
+// con dedos largos. Negro sobre transparente (el material la oscurece).
+export function sombraEnte() {
+  const [c, g] = lienzo(32, 96);
+  g.clearRect(0, 0, 32, 96);
+  g.fillStyle = '#000';
+  g.beginPath(); g.ellipse(16, 9, 3.5, 7.5, 0.15, 0, Math.PI * 2); g.fill(); // cabeza
+  g.fillRect(15, 15, 2, 6); // cuello
+  g.beginPath(); g.moveTo(9, 22); g.lineTo(23, 22); g.lineTo(20, 46); g.lineTo(12, 46); g.fill(); // torso
+  g.fillRect(12, 46, 2, 30); g.fillRect(18, 46, 2, 30); // piernas
+  g.fillRect(11, 76, 2, 14); g.fillRect(19, 76, 2, 14);
+  g.fillRect(7, 22, 2, 30); g.fillRect(23, 22, 2, 34); // brazos
+  g.fillRect(6, 52, 2, 22); g.fillRect(24, 56, 2, 22);
+  for (let i = 0; i < 4; i++) { g.fillRect(4 + i, 74, 1, 10 + i); g.fillRect(23 + i, 78, 1, 10 + i); } // dedos
+  const t = textura(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}

@@ -254,3 +254,49 @@ export function hornear(grupo, fn) {
     for (const m of mats) if (m.defines && 'PS1_LUZ' in m.defines) { m.vertexColors = true; m.needsUpdate = true; }
   });
 }
+
+// Glitch de pared: rompe a saltos la malla de unas paredes alrededor de un punto (los vértices se desplazan y la
+// textura se desgarra), como si el ente no fuera del todo de este mundo al atravesarlas. Las paredes no se
+// mueven: sus posiciones en el mundo se calculan una vez.
+export function crearGlitchMalla(mallas) {
+  const datos = mallas.map((m) => {
+    m.updateMatrixWorld(true);
+    const pos = m.geometry.attributes.position;
+    const uv = m.geometry.attributes.uv;
+    const mundo = [];
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) mundo.push(v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld).clone());
+    return { pos, uv, original: pos.array.slice(), uvOriginal: uv ? uv.array.slice() : null, mundo };
+  });
+  let roto = false;
+  return {
+    // fuerza en metros; los vértices a menos de radio del centro (Vector3 del mundo) se mueven más cuanto más cerca.
+    sacudir(centro, radio, fuerza, rnd) {
+      for (const d of datos) {
+        d.pos.array.set(d.original);
+        if (d.uv) d.uv.array.set(d.uvOriginal);
+        d.mundo.forEach((w, i) => {
+          const k = 1 - w.distanceTo(centro) / radio;
+          if (k <= 0) return;
+          const f = fuerza * k;
+          d.pos.array[i * 3] += (rnd() - 0.5) * f;
+          d.pos.array[i * 3 + 1] += (rnd() - 0.5) * f;
+          d.pos.array[i * 3 + 2] += (rnd() - 0.5) * f * 0.5;
+          if (d.uv && rnd() < 0.5) d.uv.array[i * 2] += (rnd() - 0.5) * 0.4 * k;
+        });
+        d.pos.needsUpdate = true;
+        if (d.uv) d.uv.needsUpdate = true;
+      }
+      roto = true;
+    },
+    restaurar() {
+      if (!roto) return;
+      for (const d of datos) {
+        d.pos.array.set(d.original);
+        d.pos.needsUpdate = true;
+        if (d.uv) { d.uv.array.set(d.uvOriginal); d.uv.needsUpdate = true; }
+      }
+      roto = false;
+    },
+  };
+}

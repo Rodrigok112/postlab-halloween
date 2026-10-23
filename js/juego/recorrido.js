@@ -2,7 +2,10 @@
 // Izquierda: corto (57 m, unos 30 s). Derecha: largo y con más curvas (95 m, unos 50 s). Funciones puras.
 // rumbo = giro de cámara alrededor de y (convención de Three.js): mira hacia (-sin r, 0, -cos r).
 // giro en grados: + a la derecha, − a la izquierda, respecto al tramo anterior.
-// Tras la primera esquina el pasillo sigue recto (sigueRecto m): de ahí sale el segundo monstruo.
+// recto: tras el tramo indicado el pasillo sigue recto (largo m): de ahí sale el segundo monstruo (por la
+// izquierda en la primera esquina; por la derecha, en la segunda parte del camino).
+// brazos: [desde, hasta] (m del recorrido) donde salen brazos de las paredes (por la derecha en la primera
+// parte; por la izquierda, en la segunda).
 
 // Centro del cruce, justo al otro lado de la puerta izquierda (x = −3,5) de la habitación.
 export const CRUCE = { x: -4.3, z: 0.35 };
@@ -10,7 +13,8 @@ export const CRUCE = { x: -4.3, z: 0.35 };
 export const RUTAS = {
   izquierda: {
     rumbo: Math.PI, // hacia +z
-    sigueRecto: 40,
+    recto: { tramo: 0, largo: 40 },
+    brazos: [27, 54],
     tramos: [
       { largo: 14, giro: 0 },
       { largo: 12, giro: 90 },
@@ -20,7 +24,8 @@ export const RUTAS = {
   },
   derecha: {
     rumbo: 0, // hacia −z
-    sigueRecto: 40,
+    recto: { tramo: 6, largo: 40 },
+    brazos: [9, 32], // después de que el ente revienta la puerta (a los 6 m)
     tramos: [
       { largo: 14, giro: 0 },
       { largo: 10, giro: 90 },
@@ -70,12 +75,16 @@ export function crearRecorrido(ruta, origen = CRUCE) {
     return { x: px, z: pz, rumbo: r };
   }
 
-  // Punto a d m pasada la primera esquina, siguiendo recto (el pasillo sin salida del segundo monstruo).
-  const s0 = segmentos[0];
+  // Punto a d m pasada la esquina del pasillo sin salida, siguiendo recto (de ahí sale el segundo monstruo).
+  const sr = segmentos[ruta.recto.tramo];
+  const esquinaRecto = sr.desde + sr.largo;
   function recto(d) {
-    const k = s0.largo + Math.max(0, Math.min(d, ruta.sigueRecto));
-    return { x: s0.x + -Math.sin(s0.rumbo) * k, z: s0.z + -Math.cos(s0.rumbo) * k, rumbo: s0.rumbo };
+    const k = sr.largo + Math.max(0, Math.min(d, ruta.recto.largo));
+    return { x: sr.x + -Math.sin(sr.rumbo) * k, z: sr.z + -Math.cos(sr.rumbo) * k, rumbo: sr.rumbo };
   }
 
-  return { segmentos, largo, esquinas, sigueRecto: ruta.sigueRecto, poseEn, recto };
+  return {
+    segmentos, largo, esquinas, poseEn, recto, esquinaRecto,
+    tramoRecto: ruta.recto.tramo, sigueRecto: ruta.recto.largo, brazos: ruta.brazos,
+  };
 }

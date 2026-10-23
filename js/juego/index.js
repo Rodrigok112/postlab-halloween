@@ -3,15 +3,16 @@
 // izquierda/derecha, corres; a los pocos metros el ente revienta esa puerta, te mira, grita y te persigue;
 // al fondo del primer tramo, la masa de manos se acerca saltando entre luces → «HAS MUERTO» o «HAS ESCAPADO».
 
-import { THREE, crearMotor, luces } from './ps1.js';
+import { THREE, crearMotor, luces, crearGlitchMalla, materialBrillo } from './ps1.js';
 import { crearHabitacion } from './habitacion.js';
-import { crearEnte, crearMano } from './ente.js';
+import { crearEnte, crearMano, poseEntrada, mezclarPoses, POSES } from './ente.js';
+import { crearBrazoPared } from './brazos.js';
 import { crearMasa } from './masa.js';
 import { crearPasillos } from './pasillo.js';
-import { CAMARA, ENTE, ACCIONES, DURACION, MANO, ZOOM, ENTRADA_GLITCH_S } from './escenas.js';
+import { CAMARA, ENTE, ACCIONES, DURACION, MANO, ZOOM, ENTRADA_GLITCH_S, MOMENTOS } from './escenas.js';
 import { muestrear, valorEn } from './linea.js';
 import { CRUCE } from './recorrido.js';
-import { createCarrera, tap, update, soltar, distancia, PUERTA_M } from './carrera.js';
+import { createCarrera, tap, update, soltar, agarrar, distancia, PUERTA_M } from './carrera.js';
 import { crearAcecho, actualizarAcecho, ACECHO } from './acecho.js';
 import {
   portazo, paso, crearCoro, astillazo, voz, crearArrastre, crearFondo, crearZumbido, pasoMetal, chirrido,
@@ -20,11 +21,10 @@ import {
 import { thump, scream, screamQTV } from '../audio.js';
 import { createRng, createFlashGuard } from '../glitch.js';
 import { ahiEstas } from '../texts.js';
-import { cargarFotos } from './texturas.js';
+import { cargarFotos, sombraEnte } from './texturas.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
-const CAPTURA_S = 1.6;
 const OJOS_CERCA_M = 2.6;
 const ELEGIR_S = 4;
 const LETRA_MS = 75;
@@ -44,6 +44,16 @@ const APAGON_MS = 220;
 const GOLPE_CADA_MS = [650, 1100];
 // La puerta del cruce revienta durante la carrera: duración de la escena (s).
 const REVIENTA_S = 3.8;
+// Brazos de la pared: cada cuánto sale uno (m) y a partir de qué ritmo (toques en el último segundo) no te agarra.
+const BRAZO_CADA_M = [4.5, 7.5];
+const RITMO_LIBRE = 5;
+// Sombra del ente en la pared: aparece cuando está a menos de esto (m).
+const SOMBRA_M = 4.5;
+// Gritos agónicos del ente mientras te persigue (ms entre uno y otro).
+const GRITO_CADA_MS = [3500, 7000];
+// Escena de muerte: distancias (m) a las que reaparece entre apagones, y poses de cada aparición.
+const DISTANCIAS_MUERTE = [6, 4, 2.4, 1.2];
+const POSES_MUERTE = ['acecho', 'retuerce', 'cuatroPatas', 'despliega'];
 // Huecos de luz durante la carrera.
 const L_LINTERNA = 0, L_META = 1, L_MASA = 2;
 
@@ -157,6 +167,20 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   masa.grupo.visible = false;
   mano.grupo.visible = false;
   mano.grupo.rotation.y = -Math.PI / 2; // apunta hacia dentro de la habitación (−x)
+  // Tres brazos de pared que se reutilizan durante la carrera.
+  const brazosPared = [crearBrazoPared(11), crearBrazoPared(22), crearBrazoPared(33)];
+  for (const b of brazosPared) { b.grupo.visible = false; escena.add(b.grupo); }
+  // La sombra del ente en la pared cuando se te acerca.
+  const sombra = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 2.4),
+    materialBrillo({ map: sombraEnte(), color: 0x000000, transparent: true, depthWrite: false, opacity: 0 }));
+  sombra.renderOrder = 2;
+  sombra.visible = false;
+  escena.add(sombra);
+  // Paredes que se rompen con glitch cuando el ente las atraviesa.
+  const glitchHab = crearGlitchMalla(hab.paredDerecha);
+  const glitchCruce = crearGlitchMalla(pasillos.paredCruce);
+  const PUERTA_HAB = new THREE.Vector3(3.5, 1.6, 0.35);
+  const PUERTA_CRUCE = new THREE.Vector3(PUERTA_CRUCE_X, 1.5, CRUCE.z);
   escena.fog.color.set(0x000000);
   escena.fog.near = 3;
   escena.fog.far = 16;
@@ -204,8 +228,20 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     return true;
   };
 
+  // Pose base del ente en la cinemática: asomado en reposo; al salir, las poses de la entrada (una distinta por
+  // fotograma); luego en pie, y al final se lanza (final 2) o te sigue al acecho (pasillo).
+  const FOTOGRAMAS_SALIDA = Math.round(MOMENTOS.SALIDA_S * FPS_MONSTRUO);
+  const poseCinematica = (t) => {
+    if (t < MOMENTOS.SALE) return POSES.reposo;
+    if (t < MOMENTOS.SALE + MOMENTOS.SALIDA_S) return poseEntrada(Math.floor((t - MOMENTOS.SALE) * FPS_MONSTRUO), FOTOGRAMAS_SALIDA);
+    if (camino === 'final2' && t >= MOMENTOS.LANZA) return POSES.lanza;
+    if (camino === 'pasillo' && t >= MOMENTOS.HUYE) return POSES.acecho;
+    return POSES.enPie;
+  };
+
   // Coloca al ente según sus claves en el tiempo t (posición, hacia dónde mira, inclinación y brazos).
   const posarEnte = (claves, t) => {
+    ente.pose(poseCinematica(t));
     const e = muestrear(claves, t);
     ente.grupo.position.set(...e.pos);
     ente.grupo.rotation.y = Math.atan2(e.mira[0] - e.pos[0], e.mira[2] - e.pos[2]);
@@ -232,6 +268,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // ---------- Cinemática de la habitación ----------
   let abreEn = null;
   let cierraEn = null;
+  const cabezaEnte = new THREE.Vector3();
+  const miraSuave = new THREE.Vector3();
   let ultimoCuadro = performance.now();
   const ejecutar = (a) => {
     switch (a.que) {
@@ -270,6 +308,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         sacudir(1.6, 600);
         break;
       case 'sale':
+        // Una luz tenue junto a la puerta, para que se le vea salir.
+        luces.punto(3, [2.7, 2.3, 0.35], 0xffd8b0, 1.1, 2.6);
         ente.oscuro(false);
         ente.parpadear(1);
         ente.grupo.visible = true;
@@ -303,9 +343,20 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     if (ticEnte(t)) {
       posarEnte(ENTE[camino], paso12(t));
       if (mano.grupo.visible) posarMano(paso12(t));
+      // Mientras sale, la pared de la puerta se rompe a su alrededor.
+      if (entraHasta !== null && t < entraHasta && rng() < 0.65) glitchHab.sacudir(PUERTA_HAB, 1.7, 0.2, rng);
+      else glitchHab.restaurar();
     }
     golpear(ahora);
     const c = muestrear(CAMARA[camino], t);
+    // Mientras sale y está en el marco, la mirada sigue a su cabeza (suavizado, para que no tiemble).
+    const siguiendo = t >= MOMENTOS.SALE && t < (camino === 'final2' ? MOMENTOS.LANZA : MOMENTOS.HUYE);
+    if (siguiendo) {
+      ente.cabeza.getWorldPosition(cabezaEnte);
+      miraSuave.lerp(cabezaEnte, 0.12);
+      const k = Math.min(1, (t - MOMENTOS.SALE) / 0.6) * 0.75;
+      c.mira = c.mira.map((v, i) => v + (miraSuave.getComponent(i) - v) * k);
+    } else miraSuave.set(...c.mira);
     const fov = valorEn(ZOOM, t);
     if (camara.fov !== fov) { camara.fov = fov; camara.updateProjectionMatrix(); }
     camara.position.set(...c.pos);
@@ -378,6 +429,12 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     ente.boca(0);
     ente.alcanzar(0);
     ente.abrir(0);
+    ente.pose('reposo');
+    ente.cabezaHacia(0);
+    for (const b of brazosPared) b.grupo.visible = false;
+    sombra.visible = false;
+    glitchHab.restaurar();
+    glitchCruce.restaurar();
     hab.rehacerIzquierda();
     negro(false);
     ambientePasillo();
@@ -409,15 +466,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       capa.replaceChildren();
       hab.estallar('izquierda');
       portazo();
-      captura({
-        x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE,
-        colocar: () => {
-          ente.grupo.position.set(PUERTA_CRUCE_X + 0.6, 0, CRUCE.z);
-          ente.grupo.rotation.y = -Math.PI / 2;
-          ente.agacharse(1.25);
-        },
-        toques: null,
-      });
+      escenaMuerte({ quien: 'ente', x: CRUCE.x, z: CRUCE.z, yaw: RUMBO_CRUCE + Math.PI, toques: null });
     }, ELEGIR_S * 1000);
     timers.push(plazo);
 
@@ -451,16 +500,19 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     const { recorrido: rec, luzMeta, estaciones } = pasillos.caminos[lado];
     luces.punto(L_META, luzMeta, 0xffffff, 2.5, 9);
     let c = createCarrera(rec.largo);
-    let acecho = crearAcecho(rec.esquinas[0]);
+    let acecho = crearAcecho(rec.esquinaRecto);
     let empezado = false;
     let pausa = false;
     let ultimo = performance.now();
     let ultimoParpadeo = 0;
     let ultimoPaso = 0;
     let balanceo = 0;
-    const r0 = rec.segmentos[0].rumbo;
+    const r0 = rec.segmentos[rec.tramoRecto].rumbo; // la masa viene de frente por ese tramo
     let ultimoTicMasa = -1;
+    let proximoGrito = 0;
+    const toquesRecientes = [];
     capa.replaceChildren(el('p', 'juego-aviso', 'TOCA PARA CORRER'));
+    const aviso = el('p', 'juego-agarre');
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
     capa.append(ojos);
@@ -470,9 +522,11 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (ev.type === 'keydown') ev.preventDefault();
       if (c.estado !== 'corriendo' || pausa) return;
       if (!empezado) { empezado = true; capa.querySelector('.juego-aviso')?.remove(); ultimo = performance.now(); }
+      const agarrado = c.agarre > 0;
       c = tap(c);
-      balanceo = 1;
-      paso();
+      toquesRecientes.push(performance.now());
+      balanceo = agarrado ? 0.4 : 1;
+      if (agarrado) { sacudir(0.5, 120); aviso.textContent = `¡SUÉLTATE! ${c.agarre}`; } else paso();
     };
     contenedor.addEventListener('pointerdown', alTocar);
     window.addEventListener('keydown', alTocar);
@@ -518,6 +572,88 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       masa.grupo.rotation.y = r0;
     };
 
+    // ----- Brazos de la pared: salen delante de ti; si pasas despacio, te agarran -----
+    let proximoBrazo = rec.brazos[0] + 2;
+    const brazos = []; // { b, d, nace, estado: 'sale' | 'agarra' | 'vuelve', desde }
+    // Para depurar desde la consola cuando se entra por un atajo de prueba.
+    if (window.location.hash.startsWith('#juego-')) window.__carrera = () => ({ c, brazos: brazos.map((a) => [a.d, a.estado]), proximoBrazo, toques: toquesRecientes.length });
+    const colocarBrazo = (b, d) => {
+      const p = rec.poseEn(d);
+      const dir = [-Math.sin(p.rumbo), -Math.cos(p.rumbo)];
+      const der = [-dir[1], dir[0]];
+      const g = b.grupo;
+      const donde = rng();
+      if (donde < 0.7) {
+        const s = rng() < 0.5 ? 1 : -1;
+        g.position.set(p.x + der[0] * s * 0.79, 0.9 + rng() * 0.9, p.z + der[1] * s * 0.79);
+        g.rotation.set(0, Math.atan2(-der[0] * s, -der[1] * s), 0, 'YXZ');
+      } else if (donde < 0.85) {
+        g.position.set(p.x, 2.49, p.z);
+        g.rotation.set(Math.PI / 2, p.rumbo, 0, 'YXZ');
+      } else {
+        g.position.set(p.x, 0.01, p.z);
+        g.rotation.set(-Math.PI / 2, p.rumbo, 0, 'YXZ');
+      }
+      g.visible = true;
+      b.salir(0);
+    };
+    const moverBrazos = (ahora) => {
+      while (toquesRecientes.length && ahora - toquesRecientes[0] > 1000) toquesRecientes.shift();
+      if (c.jugador >= proximoBrazo - 3.2 && proximoBrazo <= rec.brazos[1]) {
+        const libre = brazosPared.find((b) => !brazos.some((a) => a.b === b));
+        if (libre) {
+          colocarBrazo(libre, proximoBrazo);
+          brazos.push({ b: libre, d: proximoBrazo, nace: ahora, estado: 'sale' });
+          astillazo();
+        }
+        proximoBrazo += BRAZO_CADA_M[0] + rng() * (BRAZO_CADA_M[1] - BRAZO_CADA_M[0]);
+      }
+      for (let i = brazos.length - 1; i >= 0; i--) {
+        const a = brazos[i];
+        if (a.estado === 'sale') {
+          a.b.salir((ahora - a.nace) / 600);
+          a.b.agarrar(0.2);
+          if (Math.abs(c.jugador - a.d) < 0.45 && c.agarre === 0 && toquesRecientes.length < RITMO_LIBRE) {
+            a.estado = 'agarra';
+            c = agarrar(c);
+            a.b.salir(1);
+            a.b.agarrar(1);
+            scream(0.5, 'medio');
+            golpePuerta(0.6);
+            sacudir(1.2, 400);
+            vibrar();
+            aviso.textContent = `¡SUÉLTATE! ${c.agarre}`;
+            capa.append(aviso);
+          } else if (c.jugador > a.d + 1.0) { a.estado = 'vuelve'; a.desde = ahora; }
+        } else if (a.estado === 'agarra') {
+          if (c.agarre === 0) { a.estado = 'vuelve'; a.desde = ahora; aviso.remove(); }
+        } else {
+          a.b.salir(1 - (ahora - a.desde) / 400);
+          if (ahora - a.desde > 400) { a.b.grupo.visible = false; brazos.splice(i, 1); }
+        }
+      }
+    };
+
+    // ----- La sombra del ente en la pared cuando se acerca, y las luces que parpadean -----
+    const moverSombra = (ahora) => {
+      const dist = distancia(c);
+      if (!c.suelto || dist >= SOMBRA_M) { sombra.visible = false; return; }
+      const cerca = 1 - dist / SOMBRA_M;
+      const p = rec.poseEn(c.jugador + 1.3);
+      const dir = [-Math.sin(p.rumbo), -Math.cos(p.rumbo)];
+      const der = [-dir[1], dir[0]];
+      const s = Math.floor(ahora / 2600) % 2 ? 1 : -1;
+      sombra.visible = true;
+      sombra.position.set(p.x + der[0] * s * 0.78, 1.25, p.z + der[1] * s * 0.78);
+      sombra.rotation.set(0, Math.atan2(-der[0] * s, -der[1] * s), 0);
+      sombra.scale.set(0.8 + cerca * 0.5, 0.85 + cerca * 0.4, 1);
+      sombra.material.opacity = (rng() < 0.15 ? 0.25 : 0.85) * cerca;
+      if (cerca > 0.35 && rng() < 0.25) {
+        pasillos.parpadeo(rng);
+        luces.punto(L_LINTERNA, [p.x, 2.2, p.z], 0xfff0c0, 0.5 + rng() * 1.0, 6.5);
+      }
+    };
+
     // ----- La puerta del cruce revienta: te giras, sale el ente, te mira despacio, grita -----
     let revientaDesde = 0;
     let gritado = false;
@@ -540,18 +676,30 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         sacudir(1.4, 500);
       }
       hab.actualizarTrozos(1 / 60);
+      // Mientras sale, la pared de la puerta se rompe a su alrededor.
+      if (t >= 0.25 && t < 1.9 && rng() < 0.6) glitchCruce.sacudir(PUERTA_CRUCE, 1.5, 0.2, rng);
+      else glitchCruce.restaurar();
       if (t >= 0.6) {
-        // Sale por el hueco hacia el cruce y, ya en el cruce, gira despacio la cara hacia ti.
-        const u = smooth((t - 0.6) / 1.0);
+        // Sale a cuatro patas hacia el cruce; se levanta de espaldas a ti y gira la cabeza 180° hasta mirarte.
+        const u = smooth((t - 0.6) / 1.2);
         const x = PUERTA_CRUCE_X + 0.3 + (CRUCE.x + 0.4 - (PUERTA_CRUCE_X + 0.3)) * u;
         const haciaTi = Math.atan2(p.x - x, p.z - CRUCE.z);
-        const giro = smooth((t - 1.7) / 1.1);
         ente.grupo.visible = true;
         ente.grupo.position.set(x, 0, CRUCE.z);
-        ente.grupo.rotation.y = -Math.PI / 2 + (haciaTi + Math.PI / 2) * giro;
-        ente.agacharse(1.3); // el techo del cruce está a 2,5 m
-        ente.abrir(0.6 * (1 - giro));
-        if (ticEnte(t + 3000, t < 1.7 ? 2 : 1)) ente.andar(u < 1 ? t * 5 : 0);
+        if (ticEnte(t + 3000, t < 2.0 ? 2 : 1)) {
+          if (t < 1.8) {
+            ente.grupo.rotation.y = -Math.PI / 2;
+            ente.pose('cuatroPatas');
+            ente.agacharse(0);
+            ente.andar(t * 6);
+          } else {
+            ente.grupo.rotation.y = haciaTi + Math.PI; // de espaldas
+            ente.andar(0);
+            ente.pose(t >= 2.9 ? 'grito' : mezclarPoses(POSES.cuatroPatas, POSES.enPie, smooth((t - 1.8) / 0.5)));
+            ente.agacharse(0.9 * smooth((t - 1.8) / 0.5)); // el techo del cruce está a 2,5 m
+            ente.cabezaHacia(Math.PI * smooth((t - 2.15) / 0.75));
+          }
+        }
         if (!gritado && t >= 2.9) {
           gritado = true;
           ente.boca(1);
@@ -563,8 +711,11 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (t >= REVIENTA_S) {
         pausa = false;
         motor.glitch(0);
+        glitchCruce.restaurar();
         ente.grupo.visible = false;
         ente.boca(0);
+        ente.cabezaHacia(0);
+        ente.pose('reposo');
         c = soltar(c, 0);
         ultimo = ahora;
       }
@@ -601,14 +752,21 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (!pausa) {
         const cerca = c.suelto ? 1 - Math.min(1, distancia(c) / (PUERTA_M + 1)) : 0.2;
         coro.setCercania(empezado ? cerca : 0.15);
-        // Pasos metálicos del ente detrás de ti, más seguidos y fuertes cuanto más cerca.
+        // Pasos metálicos del ente detrás de ti, más seguidos y fuertes cuanto más cerca, y sus gritos agónicos.
         if (c.suelto && ahora - ultimoPaso > 420) { pasoMetal(cerca); ultimoPaso = ahora; }
+        if (c.suelto && ahora > proximoGrito) {
+          if (proximoGrito) scream(0.25 + 0.5 * cerca, 'medio');
+          proximoGrito = ahora + GRITO_CADA_MS[0] + rng() * (GRITO_CADA_MS[1] - GRITO_CADA_MS[0]);
+        }
+        moverBrazos(ahora);
+        moverSombra(ahora);
       }
 
-      // La masa, a 12 fps.
+      // La masa y los brazos, a 12 fps.
       const ticMasa = Math.floor((ahora / 1000) * FPS_MONSTRUO);
       if (ticMasa !== ultimoTicMasa) {
         ultimoTicMasa = ticMasa;
+        for (const a of brazos) a.b.tic(rng);
         posarMasa(ahora);
         if (masa.grupo.visible) masa.animar(ticMasa * 1.4, rng);
         const hueco = (acecho.esquina - c.jugador) + (acecho.pos ?? ACECHO.distanciaM);
@@ -623,20 +781,21 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       }
       if (ahora - ultimoParpadeo > 700 && rng() < 0.05) { pasillos.parpadeo(rng); ultimoParpadeo = ahora; }
       motor.render();
-      if (acecho.estado === 'atrapa') { quitarToques(); capturaMasa(c, rec); return; }
-      if (c.estado === 'atrapado') {
+      const limpiar = () => {
         quitarToques();
-        const detras = rec.poseEn(Math.max(0, c.jugador - 1.6));
-        captura({
-          x: p.x, z: p.z, yaw: p.rumbo,
-          colocar: () => {
-            ente.grupo.position.set(detras.x, 0, detras.z);
-            // El ente mira hacia donde corres (hacia ti): su frente es +z local.
-            ente.grupo.rotation.y = p.rumbo + Math.PI;
-            ente.agacharse(1.25);
-          },
-          toques: c.toques,
-        });
+        aviso.remove();
+        sombra.visible = false;
+        for (const a of brazos) a.b.grupo.visible = false;
+      };
+      if (acecho.estado === 'atrapa') {
+        limpiar();
+        escenaMuerte({ quien: 'masa', x: p.x, z: p.z, yaw: p.rumbo, toques: c.toques });
+        return;
+      }
+      if (c.estado === 'atrapado') {
+        limpiar();
+        // Te das la vuelta: el ente viene por detrás.
+        escenaMuerte({ quien: 'ente', x: p.x, z: p.z, yaw: p.rumbo + Math.PI, toques: c.toques });
         return;
       }
       if (c.estado === 'escapado') { quitarToques(); escapar(c); return; }
@@ -657,64 +816,80 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     if (navigator.vibrate && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate([200, 80, 400]);
   };
 
-  // Te atrapa el ente: te das la vuelta, está encima con la boca abierta, grita, corte a negro.
-  function captura({ x, z, yaw, colocar, toques }) {
-    colocar();
-    ente.grupo.visible = true;
-    ente.andar(0);
-    ente.abrir(0);
-    ente.alcanzar(1);
-    ente.boca(1);
-    const inicio = performance.now();
-    let grito = false;
+  // Muerte en escena (ente o masa): negro; miras hacia él (yaw) y, entre apagones, reaparece cada vez más cerca
+  // y en otra pose, como a saltos, hasta tenerlo encima: susto y grito. Los apagones son oscuridad, no destellos.
+  function escenaMuerte({ quien, x, z, yaw, toques }) {
+    const dir = [-Math.sin(yaw), -Math.cos(yaw)];
+    const colocar = (dist, k) => {
+      const final = k === 'final';
+      if (quien === 'ente') {
+        // Los pies van por detrás de los ojos tanto como se inclina hacia delante.
+        const delante = final ? 1.62 : 1.47;
+        const px = x + dir[0] * (dist + delante);
+        const pz = z + dir[1] * (dist + delante);
+        // En el susto final, la pose de reposo (con la que se midió dónde quedan los ojos) con la boca abierta.
+        const nombre = final ? 'reposo' : POSES_MUERTE[k % POSES_MUERTE.length];
+        ente.grupo.visible = true;
+        ente.grupo.position.set(px, 0, pz);
+        ente.grupo.rotation.y = Math.atan2(x - px, z - pz);
+        ente.pose(nombre);
+        ente.andar(0);
+        ente.abrir(0);
+        ente.cabezaHacia(0);
+        ente.agacharse(nombre === 'cuatroPatas' ? 0 : final ? 1.9 : 1.2);
+        ente.alcanzar(final ? 0.8 : 0);
+        ente.boca(final ? 1 : 0);
+      } else {
+        const px = x + dir[0] * (dist + 0.34);
+        const pz = z + dir[1] * (dist + 0.34);
+        masa.grupo.visible = true;
+        masa.grupo.position.set(px, final ? 0.3 : 0, pz);
+        masa.grupo.rotation.y = Math.atan2(x - px, z - pz);
+      }
+    };
     vibrar();
-    const giro = (ahora) => {
+    thump(0.6);
+    negro(true);
+    const inicio = performance.now();
+    let aparicion = -1;
+    let grito = false;
+    let ultimoTicM = -1;
+    const FIN = 0.5 + 0.6 * DISTANCIAS_MUERTE.length + 1.1;
+    const bucleM = (ahora) => {
       if (apagado) return;
       const t = (ahora - inicio) / 1000;
-      const u = smooth(t / 0.35);
-      camaraEn(x, z, yaw + Math.PI * u, 0.45 * u);
-      ticEnte(t + 2000, 2);
+      camaraEn(x, z, yaw, quien === 'ente' ? 0.08 : 0);
       hab.actualizarTrozos(1 / 60);
-      coro?.setCercania(1);
-      if (!grito && t > 0.45) { grito = true; screamQTV(); sacudir(1.5, 900); }
+      if (t >= 0.5) {
+        const k = Math.floor((t - 0.5) / 0.6);
+        if (k < DISTANCIAS_MUERTE.length) {
+          if (k !== aparicion) { aparicion = k; colocar(DISTANCIAS_MUERTE[k], k); if (quien === 'ente') pasoMetal(0.4 + k * 0.2); }
+          negro((t - 0.5) % 0.6 > 0.35);
+        } else if (!grito) {
+          grito = true;
+          colocar(0.5, 'final');
+          negro(false);
+          screamQTV();
+          sacudir(1.8, 900);
+          coro?.setCercania(1);
+        }
+      }
+      const tic = Math.floor(t * FPS_MONSTRUO);
+      if (tic !== ultimoTicM) {
+        ultimoTicM = tic;
+        if (quien === 'ente') motor.glitch(ente.tic(rng, 1) ? 1 : 0);
+        else motor.glitch(masa.animar(tic * 1.6, rng) ? 1 : 0);
+      }
       aplicarSacudida(ahora);
       motor.render();
-      if (t < CAPTURA_S) { raf = requestAnimationFrame(giro); return; }
+      if (t < FIN) { raf = requestAnimationFrame(bucleM); return; }
       motor.glitch(0);
       ente.grupo.visible = false;
-      terminarMuerte(toques);
-    };
-    raf = requestAnimationFrame(giro);
-  }
-
-  // Te atrapa la masa: se te echa encima desde delante, con todas las manos.
-  function capturaMasa(c, rec) {
-    const p = rec.poseEn(c.jugador);
-    const d = new THREE.Vector2(-Math.sin(p.rumbo), -Math.cos(p.rumbo));
-    const inicio = performance.now();
-    let grito = false;
-    vibrar();
-    const salto = (ahora) => {
-      if (apagado) return;
-      const t = paso12((ahora - inicio) / 1000);
-      const u = smooth(t / 0.3);
-      // Acaba con las caras (0,34 m por delante de su centro) a menos de un metro de ti.
-      const lejos = 3.2 - 2.0 * u;
-      masa.grupo.visible = true;
-      masa.grupo.position.set(p.x + d.x * lejos, 0.35 * u - 0.1, p.z + d.y * lejos);
-      masa.grupo.rotation.y = p.rumbo;
-      motor.glitch(masa.animar(t * 24, rng) ? 1 : 0);
-      camaraEn(p.x, p.z, p.rumbo, 0);
-      if (!grito && t > 0.15) { grito = true; screamQTV(); sacudir(1.5, 900); }
-      aplicarSacudida(ahora);
-      motor.render();
-      if (t < CAPTURA_S) { raf = requestAnimationFrame(salto); return; }
-      motor.glitch(0);
       masa.grupo.visible = false;
       luces.apagar(L_MASA);
-      terminarMuerte(c.toques);
+      terminarMuerte(toques);
     };
-    raf = requestAnimationFrame(salto);
+    raf = requestAnimationFrame(bucleM);
   }
 
   // Llegas: flash blanco, el jardín y «HAS ESCAPADO».

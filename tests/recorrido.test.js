@@ -41,11 +41,27 @@ test('fuera de rango se limita a los extremos', () => {
   assert.deepEqual(der.poseEn(999), der.poseEn(95));
 });
 
-test('el pasillo que sigue recto tras la primera esquina continúa en la misma dirección', () => {
-  const e = der.poseEn(14);
-  const p = der.recto(5);
-  assert.ok(cerca(p.x, e.x) && cerca(p.z, e.z - 5));
-  assert.ok(der.sigueRecto >= 40);
+test('la masa: por la izquierda en la primera esquina; por la derecha, en la segunda parte del camino', () => {
+  assert.equal(izq.esquinaRecto, 14);
+  assert.ok(der.esquinaRecto > der.largo / 2);
+  assert.ok(izq.esquinas.includes(izq.esquinaRecto) && der.esquinas.includes(der.esquinaRecto));
+});
+
+test('el pasillo que sigue recto tras esa esquina continúa en la misma dirección', () => {
+  for (const r of [izq, der]) {
+    const e = r.poseEn(r.esquinaRecto - 2);
+    const f = r.poseEn(r.esquinaRecto - 1.5);
+    const dir = [(f.x - e.x) / 0.5, (f.z - e.z) / 0.5];
+    const p = r.recto(5);
+    const esq = r.recto(0);
+    assert.ok(cerca(p.x, esq.x + dir[0] * 5, 1e-6) && cerca(p.z, esq.z + dir[1] * 5, 1e-6));
+    assert.ok(r.sigueRecto >= 40);
+  }
+});
+
+test('los brazos de pared: por la derecha en la primera parte; por la izquierda, en la segunda', () => {
+  assert.ok(der.brazos[0] > 6 && der.brazos[0] < 12 && der.brazos[1] <= der.largo / 2, 'después de la puerta reventada');
+  assert.ok(izq.brazos[0] >= izq.esquinas[0] && izq.brazos[1] <= izq.largo);
 });
 
 // Muestras del eje de cada pasillo, para comprobar que ninguno pisa la habitación ni a otro.
@@ -76,6 +92,8 @@ test('los pasillos no se tocan entre sí (al menos 2,4 m entre ejes)', () => {
   const rectoDer = muestras(der.recto, 2, der.sigueRecto);
   assert.ok(minDist(tramosIzq, tramosDer) >= 2.4, 'izquierda contra derecha');
   assert.ok(minDist(rectoIzq, tramosDer) >= 2.4 && minDist(rectoDer, tramosIzq) >= 2.4, 'rectos contra el otro camino');
-  assert.ok(minDist(rectoIzq, muestras(izq.poseEn, 17, izq.largo)) >= 2.4, 'recto izquierdo contra su camino');
-  assert.ok(minDist(rectoDer, muestras(der.poseEn, 17, der.largo)) >= 2.4, 'recto derecho contra su camino');
+  // Contra su propio camino, sin contar los metros de alrededor de la esquina de la que sale.
+  const lejosDe = (r) => [...muestras(r.poseEn, 0, r.esquinaRecto - 3), ...muestras(r.poseEn, r.esquinaRecto + 3, r.largo)];
+  assert.ok(minDist(rectoIzq, lejosDe(izq)) >= 2.4, 'recto izquierdo contra su camino');
+  assert.ok(minDist(rectoDer, lejosDe(der)) >= 2.4, 'recto derecho contra su camino');
 });

@@ -7,11 +7,18 @@ export const LARGO_M = 57; // largo por defecto: el camino izquierdo (el derecho
 export const PUERTA_M = 6; // a esta distancia del cruce el ente revienta la puerta y sale
 export const VEL_ENTE = 2.35; // m/s: unos 6,2 toques por segundo
 export const ATRAPA_M = 0.8;
+// Si un brazo de la pared te agarra, cada toque avanza la mitad hasta que das estos toques.
+export const AGARRE_TOQUES = 10;
 // Un fotograma nunca avanza más que esto: si la pestaña se congela, el ente no aparece encima de golpe.
 export const DT_MAX_S = 0.1;
 
 export function createCarrera(largo = LARGO_M) {
-  return { jugador: 0, ente: 0, suelto: false, toques: 0, t: 0, estado: 'corriendo', largo };
+  return { jugador: 0, ente: 0, suelto: false, toques: 0, t: 0, estado: 'corriendo', largo, agarre: 0 };
+}
+
+// Un brazo de la pared te agarra.
+export function agarrar(c) {
+  return { ...c, agarre: AGARRE_TOQUES };
 }
 
 // El ente sale por la puerta reventada, en la posición enPos del recorrido.
@@ -25,8 +32,12 @@ export function distancia(c) {
 
 export function tap(c) {
   if (c.estado !== 'corriendo') return c;
-  const jugador = Math.min(c.jugador + PASO_M, c.largo);
-  return { ...c, jugador, toques: c.toques + 1, estado: jugador >= c.largo ? 'escapado' : 'corriendo' };
+  const paso = c.agarre > 0 ? PASO_M / 2 : PASO_M;
+  const jugador = Math.min(c.jugador + paso, c.largo);
+  return {
+    ...c, jugador, toques: c.toques + 1, agarre: Math.max(0, c.agarre - 1),
+    estado: jugador >= c.largo ? 'escapado' : 'corriendo',
+  };
 }
 
 export function update(c, dtS) {

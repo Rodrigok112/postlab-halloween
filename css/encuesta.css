@@ -404,3 +404,11 @@ body.nivel-5 .si-media { border-radius: 0; }
   transform-origin: left; animation: plazo linear both;
 }
 @keyframes plazo { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+/* Un brazo de la pared te agarra: toca rápido para soltarte. */
+.juego-agarre {
+  position: absolute; left: 0; right: 0; top: 38%;
+  margin: 0; text-align: center;
+  font-size: clamp(34px, 11vw, 64px);
+  color: #e0141c; text-shadow: 3px 3px 0 #000;
+  animation: aviso .35s steps(1) infinite;
+}

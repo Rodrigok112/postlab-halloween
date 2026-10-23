@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createCarrera, tap, update, soltar, distancia, PASO_M, LARGO_M, PUERTA_M, DT_MAX_S,
+  createCarrera, tap, update, soltar, agarrar, distancia, PASO_M, LARGO_M, PUERTA_M, DT_MAX_S, AGARRE_TOQUES,
 } from '../js/juego/carrera.js';
 import { crearRecorrido, RUTAS } from '../js/juego/recorrido.js';
 
@@ -39,6 +39,19 @@ test('cada toque avanza un paso y cuenta una vez', () => {
   const c = tap(tap(createCarrera(IZQ)));
   assert.equal(c.toques, 2);
   assert.ok(Math.abs(c.jugador - 2 * PASO_M) < 1e-9);
+});
+
+test('si un brazo te agarra, cada toque avanza la mitad hasta que te sueltas con 10 toques', () => {
+  let c = agarrar(createCarrera(IZQ));
+  assert.equal(c.agarre, AGARRE_TOQUES);
+  assert.equal(AGARRE_TOQUES, 10);
+  c = tap(c);
+  assert.ok(Math.abs(c.jugador - PASO_M / 2) < 1e-9);
+  for (let i = 1; i < AGARRE_TOQUES; i++) c = tap(c);
+  assert.equal(c.agarre, 0);
+  const antes = c.jugador;
+  c = tap(c);
+  assert.ok(Math.abs(c.jugador - antes - PASO_M) < 1e-9, 'suelto: paso entero');
 });
 
 test('por defecto el largo es el del camino izquierdo', () => {

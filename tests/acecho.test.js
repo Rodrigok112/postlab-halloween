@@ -30,6 +30,12 @@ test('a 5 toques/s te atrapa', () => {
   assert.equal(simular(5 * 0.38).estado, 'atrapa');
 });
 
+test('en una esquina lejana (camino derecho) no sale hasta que te acercas a ella', () => {
+  const lejos = actualizarAcecho(crearAcecho(71), 71 - ACECHO.antesM - 1, 0.016);
+  assert.equal(lejos.estado, 'espera');
+  assert.equal(actualizarAcecho(lejos, 71 - ACECHO.antesM, 0.016).estado, 'corre');
+});
+
 test('un salto de tiempo enorme avanza como mucho 0,1 s', () => {
   const a = actualizarAcecho(crearAcecho(ESQUINA), 0, 0.01);
   const b = actualizarAcecho(a, 0, 30);

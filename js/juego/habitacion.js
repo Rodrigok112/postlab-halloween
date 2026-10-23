@@ -133,9 +133,8 @@ export function crearHabitacion(rng) {
   const cielo = plano(ANCHO, FONDO, techoM);
   cielo.rotation.x = Math.PI / 2;
   cielo.position.y = ALTO;
-  grupo.add(fondo, frente, piso, cielo,
-    paredConPuerta(ANCHO / 2, -Math.PI / 2, paredLado),
-    paredConPuerta(-ANCHO / 2, Math.PI / 2, paredLado));
+  const paredDerecha = paredConPuerta(ANCHO / 2, -Math.PI / 2, paredLado);
+  grupo.add(fondo, frente, piso, cielo, paredDerecha, paredConPuerta(-ANCHO / 2, Math.PI / 2, paredLado));
 
   // Escritorio metálico pegado a la pared, con la pintura gastada.
   const mesa = caja(1.6, 0.04, 0.75, mueble);
@@ -337,6 +336,8 @@ export function crearHabitacion(rng) {
     puertaRota,
     estallar,
     actualizarTrozos,
+    // Trozos de la pared de la puerta del ente (para romperlos con glitch cuando sale).
+    paredDerecha: paredDerecha.children,
     izquierdaRota: () => !puertaIzquierda.visible,
     // Vuelve a poner la puerta izquierda, cerrada y entera, y quita sus trozos (para «repetir»).
     rehacerIzquierda() {

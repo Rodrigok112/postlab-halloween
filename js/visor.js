@@ -2,7 +2,7 @@
 // 360°, la entrada completa de 30 poses a 12 fps, un primer plano de la cara, el glitch y los brazos de pared.
 // Mismo motor PS1 que el juego. Se arrastra con el dedo o el ratón para girar a mano.
 
-import { THREE, crearMotor, materialPS1, luces } from './juego/ps1.js';
+import { THREE, crearMotor, materialPS1, luces, crearGlitchMalla } from './juego/ps1.js';
 import * as tex from './juego/texturas.js';
 import { crearEnte, POSES, poseEntrada } from './juego/ente.js';
 import { crearBrazoPared } from './juego/brazos.js';
@@ -41,6 +41,9 @@ const dintel = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5, 2, 1), papel);
 dintel.position.set(0, 2.35, 0);
 pared.add(dintel);
 escena.add(pared);
+// Al atravesar la puerta, la pared se rompe a su alrededor.
+const glitchPared = crearGlitchMalla(pared.children);
+const pecho = new THREE.Vector3();
 
 const ente = crearEnte();
 escena.add(ente.grupo);
@@ -148,6 +151,12 @@ function bucle(ahora) {
       ente.pose(poseEntrada(Math.min(k, 29)));
       ente.grupo.position.set(0, 0, -0.9 + 1.6 * u);
       titulo.textContent = `el ente · entrada · pose ${Math.min(k, 29) + 1}/30`;
+      // Mientras cruza el plano de la pared (y un poco antes y después), la pared se glitchea.
+      if (Math.abs(ente.grupo.position.z) < 0.6 && k < 30) {
+        pecho.set(0, 1.7, 0);
+        glitchPared.sacudir(pecho, 1.5, 0.22, rng);
+        if (rng() < 0.4) motor.glitch(1);
+      } else glitchPared.restaurar();
     }
     if (modo === 'brazos') {
       brazos.forEach((b, i) => {
@@ -157,7 +166,10 @@ function bucle(ahora) {
         b.tic(rng);
       });
     }
-    if (modo !== 'brazos') motor.glitch(ente.tic(rng, conGlitch ? 2 : 0) ? 1 : 0);
+    const paredRota = modo === 'entrada' && Math.abs(ente.grupo.position.z) < 0.6;
+    const rotoEnte = modo !== 'brazos' && ente.tic(rng, conGlitch ? 2 : 0);
+    if (!paredRota) motor.glitch(rotoEnte ? 1 : 0);
+    if (modo !== 'entrada') glitchPared.restaurar();
   }
   if (girar && arrastrando === null) angulo += 0.008;
   if (modo === 'brazos') {
