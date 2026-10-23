@@ -10,7 +10,7 @@
 const SENTADO = { pos: [0, 1.15, 0.02], mira: [0, 1.08, -1.15] };
 const PUERTA_D = [3.5, 1.45, 0.35];
 const SENTADO_GIRADO = { pos: [0.05, 1.17, 0.05], mira: PUERTA_D };
-const CARA_EN_MARCO = [2.65, 2.25, 0.35];
+const CARA_EN_MARCO = [2.4, 2.2, 0.35];
 const CRUCE = [-4.3, 1.6, 0.35];
 const ESTALLA = 13.6;
 const SALE = 14.6;
@@ -69,15 +69,16 @@ export const ZOOM = [
 // abre = brazos abiertos agarrando el marco (0 a 1).
 // Asomado: detrás de la puerta, inclinado para que los ojos queden justo detrás del boquete
 // (ASOMADO_LEJOS: metros que los ojos quedan por delante de los pies con esa inclinación).
-const ASOMADO_LEJOS = 1.46;
-const ASOMADO = { pos: [3.62 + ASOMADO_LEJOS, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.73, abre: 0 };
+const ASOMADO_LEJOS = 1.62;
+const ASOMADO = { pos: [3.62 + ASOMADO_LEJOS, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.93, abre: 0 };
 // Salida: primero los brazos, que se abren y agarran el marco; el cuerpo detrás, a tirones; al final, en el
 // marco, encorvado bajo el dintel con la cabeza ya dentro.
 const SALIDA = [
-  { t: SALE, pos: [ASOMADO.pos[0] + 0.3, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.5, abre: 0 },
-  { t: 15.8, pos: [4.5, 0, 0.35], mira: [0, 0, 0.5], agachado: 1.15, abre: 1 },
-  { t: 17.0, pos: [4.1, 0, 0.3], mira: [0, 0, 0.1], agachado: 1.05, abre: 0.7 },
-  { t: 18.0, pos: [3.85, 0, 0.35], mira: [0, 0, 0.35], agachado: 0.95, abre: 0.2 },
+  { t: SALE, pos: [ASOMADO.pos[0] + 0.3, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.7, abre: 0 },
+  { t: 15.8, pos: [4.5, 0, 0.35], mira: [0, 0, 0.5], agachado: 1.4, abre: 1 },
+  { t: 17.0, pos: [4.1, 0, 0.3], mira: [0, 0, 0.1], agachado: 1.3, abre: 0.7 },
+  // En el marco: con 1,2 rad los ojos quedan a 2,2 m y 1,47 m por delante (bajo el techo de 2,6 m).
+  { t: 18.0, pos: [3.85, 0, 0.35], mira: [0, 0, 0.35], agachado: 1.2, abre: 0.2 },
 ];
 
 export const ENTE = {
@@ -85,14 +86,14 @@ export const ENTE = {
     { t: 0, ...ASOMADO },
     ...SALIDA,
     // Se lanza: en un tercio de segundo, de la puerta a tu cara.
-    // Con 1,75 rad los ojos quedan a 1,49 m y 1,46 m por delante: a unos 40 cm de tu cara.
-    { t: LANZA + 0.35, pos: [1.85, 0, 0.12], mira: [0, 0, 0.08], agachado: 1.75, abre: 0 },
+    // Con 1,95 rad los ojos quedan a 1,49 m y 1,62 m por delante: a unos 40 cm de tu cara.
+    { t: LANZA + 0.35, pos: [2.0, 0, 0.12], mira: [0, 0, 0.08], agachado: 1.95, abre: 0 },
   ],
   pasillo: [
     { t: 0, ...ASOMADO },
     ...SALIDA,
     // Te sigue mientras huyes: lo ves venir al cerrar la puerta.
-    { t: 21.3, pos: [-0.2, 0, 0.35], mira: [-3.5, 0, 0.35], agachado: 0.95, abre: 0.3 },
+    { t: 21.3, pos: [-0.2, 0, 0.35], mira: [-3.5, 0, 0.35], agachado: 1.2, abre: 0.3 },
   ],
 };
 

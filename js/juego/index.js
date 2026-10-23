@@ -414,7 +414,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         colocar: () => {
           ente.grupo.position.set(PUERTA_CRUCE_X + 0.6, 0, CRUCE.z);
           ente.grupo.rotation.y = -Math.PI / 2;
-          ente.agacharse(0.85);
+          ente.agacharse(1.25);
         },
         toques: null,
       });
@@ -549,7 +549,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         ente.grupo.visible = true;
         ente.grupo.position.set(x, 0, CRUCE.z);
         ente.grupo.rotation.y = -Math.PI / 2 + (haciaTi + Math.PI / 2) * giro;
-        ente.agacharse(0.7);
+        ente.agacharse(1.3); // el techo del cruce está a 2,5 m
         ente.abrir(0.6 * (1 - giro));
         if (ticEnte(t + 3000, t < 1.7 ? 2 : 1)) ente.andar(u < 1 ? t * 5 : 0);
         if (!gritado && t >= 2.9) {
@@ -633,7 +633,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
             ente.grupo.position.set(detras.x, 0, detras.z);
             // El ente mira hacia donde corres (hacia ti): su frente es +z local.
             ente.grupo.rotation.y = p.rumbo + Math.PI;
-            ente.agacharse(0.75);
+            ente.agacharse(1.25);
           },
           toques: c.toques,
         });

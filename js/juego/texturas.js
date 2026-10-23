@@ -621,3 +621,30 @@ export function chapa(rng) {
   for (let i = 0; i < 3; i++) mancha(g, rng() * 64, rng() * 64, 3 + rng() * 4, rng, 'rgba(110,50,20,.45)');
   return textura(c);
 }
+
+// Boquete en la pared por donde sale un brazo: agujero negro irregular con el yeso roto alrededor y sangre.
+export function agujeroPared(rng) {
+  const [c, g] = lienzo(64, 64);
+  g.clearRect(0, 0, 64, 64);
+  const contorno = (r0, desv) => {
+    g.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const r = r0 + (rng() - 0.5) * desv;
+      if (i === 0) g.moveTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r);
+      else g.lineTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r);
+    }
+    g.fill();
+  };
+  g.fillStyle = '#8a7a44';
+  contorno(26, 10);
+  g.fillStyle = '#5d5128';
+  contorno(20, 8);
+  g.fillStyle = '#050403';
+  contorno(15, 6);
+  g.fillStyle = '#5a0408';
+  for (let i = 0; i < 5; i++) g.fillRect(Math.floor(20 + rng() * 24), 44, 2, 6 + Math.floor(rng() * 16));
+  const t = textura(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
