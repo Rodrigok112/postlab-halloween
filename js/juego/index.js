@@ -891,7 +891,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         else if (!masaVista && c.jugador >= rec.segmentos[rec.tramoRecto].desde + 1.2) presentarMasa(ahora);
       }
       while (toquesRecientes.length && ahora - toquesRecientes[0] > 1000) toquesRecientes.shift();
-      barra.actualizar({ toques: toquesRecientes.length, empezado, avisar: c.suelto, agarre: c.agarre, total: AGARRE_TOQUES, oculta: pausa });
+      barra.actualizar({ toques: toquesRecientes.length, empezado, avisar: c.suelto, agarre: c.agarre, total: AGARRE_TOQUES, oculta: pausa, guia: !c.suelto });
       balanceo = Math.max(0, balanceo - dt * 6);
       const p = rec.poseEn(c.jugador);
       if (pausa) escenaPausa(ahora);

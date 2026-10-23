@@ -86,6 +86,10 @@ export function crearBarra(tactil) {
   const { c, ctx } = lienzo(10, 10, 'juego-manita');
   columna.append(barra, c);
   caja.append(texto, columna);
+  // Tutorial (24/10): al empezar, una mano grande que toca sin parar y «TOCA RÁPIDO», hasta que sale el ente.
+  const tutorial = nodo('div', 'juego-tutorial');
+  const grande = lienzo(20, 20, 'juego-mano-grande');
+  tutorial.append(grande.c, nodo('p', '', tactil ? 'TOCA RÁPIDO' : 'PULSA ESPACIO RÁPIDO'));
   // Agarrado: bordes rojos y «¡SUÉLTATE!» en grande.
   const velo = nodo('div', 'juego-velo');
   velo.append(nodo('p', '', '¡SUÉLTATE!'));
@@ -96,11 +100,20 @@ export function crearBarra(tactil) {
   let nivel = 0;
   let encendidos = -1;
   let agarrado = false;
+  let conTutorial = false;
   const dibujar = () => {
     const ciclo = agarrado ? 2 : 6;
     const abajo = f % ciclo < ciclo / 2;
     ctx.clearRect(0, 0, 10, 10);
     manita(ctx, 1, abajo ? 2 : 0, agarrado ? '#f0c0b0' : '#e8d8c0');
+    if (conTutorial) {
+      // Toca deprisa (4 toques por segundo) y cada toque deja una onda bajo el dedo.
+      const g = grande.ctx;
+      const k = f % 3;
+      g.clearRect(0, 0, 20, 20);
+      if (k < 2) anillo(g, 7.5, 7, 2 + k * 2.5, k ? '#8a7a62' : '#fff6d8');
+      manita(g, 6, k < 2 ? 7 : 5, '#e8d8c0');
+    }
     f++;
   };
   return {
@@ -114,12 +127,19 @@ export function crearBarra(tactil) {
       id = 0;
       caja.remove();
       velo.remove();
+      tutorial.remove();
       padre = null;
     },
     // toques: en el último segundo. agarre: toques que faltan para soltarte (0 si no te agarran).
-    // oculta: durante las cutscenes de la carrera, que no piden pulsar.
-    actualizar({ toques, empezado, avisar, agarre, total, oculta }) {
+    // oculta: durante las cutscenes de la carrera, que no piden pulsar. guia: si se ve el tutorial.
+    actualizar({ toques, empezado, avisar, agarre, total, oculta, guia }) {
       caja.style.visibility = oculta ? 'hidden' : '';
+      const verTutorial = Boolean(guia && !oculta && padre);
+      if (verTutorial !== conTutorial) {
+        conTutorial = verTutorial;
+        if (verTutorial) padre.append(tutorial);
+        else tutorial.remove();
+      }
       if (oculta) return;
       const ahora = agarre > 0;
       if (ahora) nivel = (total - agarre) / total;
@@ -135,7 +155,7 @@ export function crearBarra(tactil) {
         encendidos = n;
         trozos.forEach((s, i) => s.classList.toggle('lleno', i < n));
       }
-      const t = !empezado ? (tactil ? 'TOCA' : 'PULSA') : !agarrado && avisar && nivel < UMBRAL ? '¡MÁS!' : '';
+      const t = conTutorial ? '' : !empezado ? (tactil ? 'TOCA' : 'PULSA') : !agarrado && avisar && nivel < UMBRAL ? '¡MÁS!' : '';
       if (texto.textContent !== t) {
         texto.textContent = t;
         texto.classList.toggle('mas', t === '¡MÁS!');
