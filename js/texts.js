@@ -21,7 +21,7 @@ export const NOMBRE = {
   title: '¿cómo te llamas?',
   avisoBorde: 'te recordaré para siempre, así que mejor no pongas un nombre de mierda.',
   aviso: 'te recordaré para siempre, así que no pongas tu usuario de Tuenti.',
-  cambioMs: 2500,
+  cambioMs: 3500, // 3,5 s: que dé tiempo a leer «nombre de mierda»
   placeholder: 'tu nombre',
   boton: 'Continuar',
 };

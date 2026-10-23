@@ -130,8 +130,8 @@ export function scream(strength, filtro = 'puerta') {
 }
 
 // El grito de «QUIERO TU VIDA»: el más fuerte de todos. Tres gritos a la vez (grave, medio y agudo),
-// saturados y sin filtro de puerta, encima de un golpe seco.
-export function screamQTV() {
+// saturados y sin filtro de puerta, encima de un golpe seco. volumen: pico del grito (0 a 1).
+export function screamQTV(volumen = 0.9) {
   if (!ctx) return;
   const t = ctx.currentTime;
   const saturar = ctx.createWaveShaper();
@@ -146,8 +146,8 @@ export function screamQTV() {
   filter.frequency.value = 7500;
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, t);
-  master.gain.exponentialRampToValueAtTime(0.9, t + 0.03);
-  master.gain.setValueAtTime(0.9, t + 1.6);
+  master.gain.exponentialRampToValueAtTime(volumen, t + 0.03);
+  master.gain.setValueAtTime(volumen, t + 1.6);
   master.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
   saturar.connect(filter).connect(master).connect(ctx.destination);
   for (const rate of [0.62, 0.86, 1.12]) {
@@ -159,5 +159,5 @@ export function screamQTV() {
     src.connect(g).connect(saturar);
     src.start(t);
   }
-  thump(1);
+  thump(Math.min(1, volumen / 0.9));
 }

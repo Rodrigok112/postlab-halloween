@@ -231,7 +231,7 @@ function finish(camino) {
   golpeteo(false);
   stopMusic();
   setNivel(5);
-  screamQTV();
+  screamQTV(0.6); // algo más bajo que en el juego: en la web reventaba
   renderQuieroTuVida(app);
   later(() => {
     renderBlack(app);

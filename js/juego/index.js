@@ -44,8 +44,11 @@ const APAGON_MS = 220;
 const GOLPE_CADA_MS = [650, 1100];
 // La puerta del cruce revienta durante la carrera: duración de la escena (s).
 const REVIENTA_S = 3.8;
-// Brazos de la pared: cada cuánto sale uno (m) y a partir de qué ritmo (toques en el último segundo) no te agarra.
-const BRAZO_CADA_M = [4.5, 7.5];
+// Brazos de la pared: cada cuánto sale uno (m), a veces dos a la vez, y a partir de qué ritmo (toques en el
+// último segundo) no te agarra. Cuando te tiene cerca se tira hacia ti.
+const BRAZO_CADA_M = [1.8, 3.2];
+const BRAZO_PAR = 0.35; // probabilidad de que salgan dos (uno en cada pared)
+const BRAZO_SE_TIRA_M = 1.6;
 const RITMO_LIBRE = 5;
 // Sombra del ente en la pared: aparece cuando está a menos de esto (m).
 const SOMBRA_M = 4.5;
@@ -167,8 +170,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   masa.grupo.visible = false;
   mano.grupo.visible = false;
   mano.grupo.rotation.y = -Math.PI / 2; // apunta hacia dentro de la habitación (−x)
-  // Tres brazos de pared que se reutilizan durante la carrera.
-  const brazosPared = [crearBrazoPared(11), crearBrazoPared(22), crearBrazoPared(33)];
+  // Brazos de pared que se reutilizan durante la carrera.
+  const brazosPared = [11, 22, 33, 44, 55, 66].map((semilla) => crearBrazoPared(semilla));
   for (const b of brazosPared) { b.grupo.visible = false; escena.add(b.grupo); }
   // La sombra del ente en la pared cuando se te acerca.
   const sombra = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 2.4),
@@ -577,14 +580,14 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     const brazos = []; // { b, d, nace, estado: 'sale' | 'agarra' | 'vuelve', desde }
     // Para depurar desde la consola cuando se entra por un atajo de prueba.
     if (window.location.hash.startsWith('#juego-')) window.__carrera = () => ({ c, brazos: brazos.map((a) => [a.d, a.estado]), proximoBrazo, toques: toquesRecientes.length });
-    const colocarBrazo = (b, d) => {
+    const colocarBrazo = (b, d, lado) => {
       const p = rec.poseEn(d);
       const dir = [-Math.sin(p.rumbo), -Math.cos(p.rumbo)];
       const der = [-dir[1], dir[0]];
       const g = b.grupo;
-      const donde = rng();
+      const donde = lado ? 0 : rng();
       if (donde < 0.7) {
-        const s = rng() < 0.5 ? 1 : -1;
+        const s = lado ?? (rng() < 0.5 ? 1 : -1);
         g.position.set(p.x + der[0] * s * 0.79, 0.9 + rng() * 0.9, p.z + der[1] * s * 0.79);
         g.rotation.set(0, Math.atan2(-der[0] * s, -der[1] * s), 0, 'YXZ');
       } else if (donde < 0.85) {
@@ -600,20 +603,31 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     const moverBrazos = (ahora) => {
       while (toquesRecientes.length && ahora - toquesRecientes[0] > 1000) toquesRecientes.shift();
       if (c.jugador >= proximoBrazo - 3.2 && proximoBrazo <= rec.brazos[1]) {
-        const libre = brazosPared.find((b) => !brazos.some((a) => a.b === b));
-        if (libre) {
-          colocarBrazo(libre, proximoBrazo);
-          brazos.push({ b: libre, d: proximoBrazo, nace: ahora, estado: 'sale' });
-          astillazo();
+        const par = rng() < BRAZO_PAR;
+        for (const lado of par ? [1, -1] : [undefined]) {
+          const libre = brazosPared.find((b) => !brazos.some((a) => a.b === b));
+          if (!libre) break;
+          colocarBrazo(libre, proximoBrazo + (lado === -1 ? 0.5 : 0), lado);
+          brazos.push({ b: libre, d: proximoBrazo + (lado === -1 ? 0.5 : 0), nace: ahora, estado: 'sale', base: libre.grupo.quaternion.clone() });
         }
+        astillazo();
         proximoBrazo += BRAZO_CADA_M[0] + rng() * (BRAZO_CADA_M[1] - BRAZO_CADA_M[0]);
       }
       for (let i = brazos.length - 1; i >= 0; i--) {
         const a = brazos[i];
         if (a.estado === 'sale') {
-          a.b.salir((ahora - a.nace) / 600);
-          a.b.agarrar(0.2);
-          if (Math.abs(c.jugador - a.d) < 0.45 && c.agarre === 0 && toquesRecientes.length < RITMO_LIBRE) {
+          a.b.salir((ahora - a.nace) / 500);
+          // Cuando te tiene cerca se tira hacia ti, con la mano abriéndose y cerrándose para cogerte.
+          const falta = a.d - c.jugador;
+          if (falta < BRAZO_SE_TIRA_M && falta > -0.6) {
+            a.b.grupo.lookAt(camara.position.x, camara.position.y - 0.25, camara.position.z);
+            a.b.agarrar(0.4 + 0.6 * Math.max(0, 1 - Math.abs(falta) / BRAZO_SE_TIRA_M));
+          } else {
+            a.b.grupo.quaternion.copy(a.base);
+            a.b.agarrar(0.2);
+          }
+          if (Math.abs(falta) < 0.25 && !a.rozado) { a.rozado = true; sacudir(0.5, 150); golpePuerta(0.25); }
+          if (Math.abs(c.jugador - a.d) < 0.6 && c.agarre === 0 && toquesRecientes.length < RITMO_LIBRE) {
             a.estado = 'agarra';
             c = agarrar(c);
             a.b.salir(1);
