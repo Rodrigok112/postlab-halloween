@@ -7,6 +7,7 @@
 
 import { THREE, crearMotor, luces } from './juego/ps1.js';
 import { crearHabitacion, POSES } from './juego/habitacion.js';
+import { crearEnte } from './juego/ente.js';
 import { cargarFotos } from './juego/texturas.js';
 import { createRng } from './glitch.js';
 import { grabarEn, thump, scream, screamQTV } from './audio.js';
@@ -31,8 +32,15 @@ const ESTADOS = {
   foto_4_encendido_escapar: { luz: true, pantalla: [0x2a2a2e, 0x606878, 0.3], escapar: true },
   foto_5_encendido_escapar_rojo: { luz: true, pantalla: [0x2a2a2e, 0x606878, 0.3], escapar: true, rojo: true },
   foto_6_apagado_escapar: { luz: false, pantalla: [0x2a2a2e, 0x606878, 0.35, 1.8], escapar: true },
+  // Finales (27/10). A: el ente se asoma por encima del monitor con la luz roja; la pantalla solo con el círculo.
+  // B: como la 6, con su reflejo tenue en la pantalla, de pie detrás de la silla.
+  foto_7_final_asomado: { luz: false, pantalla: [0x2a2a2e, 0x606878, 0.35, 1.8], circulo: true, rojo: true, ente: 'asomado' },
+  foto_8_final_reflejo: { luz: false, pantalla: [0x2a2a2e, 0x606878, 0.35, 1.8], escapar: true, reflejo: true },
 };
 const BOLA = { x: 540, y: 540, r: 76 };
+// La pantalla en el cuadro final (medida en el render).
+const PANT = { x: 294, y: 360, w: 492, h: 360 };
+const L_EXTRA = 3;
 const TEXTO_ESCAPAR = 'haz click para escapar';
 
 // Sonidos sueltos: [nombre, segundos, qué suena].
@@ -61,6 +69,46 @@ const motor = crearMotor(contenedor, { ladoCorto: INTERNO });
 const { escena, camara } = motor;
 const hab = crearHabitacion(createRng(20261031));
 escena.add(hab.grupo);
+const ente = crearEnte();
+ente.grupo.visible = false;
+escena.add(ente.grupo);
+
+// Coloca al ente con los ojos (punto medio) en «ojos», inclinándolo lo justo sobre su pose para la altura.
+const tmp = new THREE.Vector3();
+const medioOjos = () => ente.ojos.reduce((m, o) => m.add(o.getWorldPosition(tmp.clone())), new THREE.Vector3()).divideScalar(ente.ojos.length);
+function colocarEnte({ pose, rotY, ojos, alcance = 0, cabeza = 0 }) {
+  ente.grupo.visible = true;
+  ente.oscuro(false);
+  ente.parpadear(1);
+  ente.pose(pose);
+  ente.andar(0);
+  ente.abrir(0);
+  ente.boca(0);
+  ente.alcanzar(alcance);
+  ente.cabezaHacia(cabeza);
+  ente.grupo.position.set(ojos[0], 0, ojos[2]);
+  ente.grupo.rotation.y = rotY;
+  let lo = 0, hi = 2.4;
+  for (let i = 0; i < 10; i++) {
+    const mid = (lo + hi) / 2;
+    ente.agacharse(mid);
+    ente.grupo.updateMatrixWorld(true);
+    if (medioOjos().y > ojos[1]) lo = mid; else hi = mid;
+  }
+  ente.agacharse((lo + hi) / 2);
+  ente.grupo.updateMatrixWorld(true);
+  const o = medioOjos();
+  ente.grupo.position.x += ojos[0] - o.x;
+  ente.grupo.position.z += ojos[2] - o.z;
+  ente.grupo.updateMatrixWorld(true);
+}
+const ENTE = {
+  // A la derecha del monitor, encorvado sobre él: la cabeza asoma por encima del borde y mira a la cámara.
+  asomado: { pose: 'acecho', rotY: Math.atan2(-0.6, 1.3), ojos: [0.12, 1.5, -1.32], alcance: 0.55, cabeza: 0.35 },
+  // Encorvado detrás de la silla, mirando a la pantalla (solo se ve su reflejo): la cara queda a la derecha del
+  // círculo y algo por encima, entera dentro de la pantalla.
+  reflejo: { pose: 'reposo', rotY: Math.PI, ojos: [0.3, 1.44, 0.5], alcance: 0, cabeza: -0.25 },
+};
 
 // Cámara sentada en la silla, con los ojos a la altura del centro de la pantalla y mirando recto (si mirara hacia
 // arriba, la pantalla saldría un pelo trapezoidal); el fov hace que la pantalla mida PANTALLA_PX.
@@ -76,6 +124,7 @@ camara.updateProjectionMatrix();
 
 function poner(nombre) {
   const e = ESTADOS[nombre];
+  if (e.ente) colocarEnte(ENTE[e.ente]); else ente.grupo.visible = false;
   hab.setLuz(e.luz);
   hab.pantallaLisa(...e.pantalla);
   hab.rendija(Boolean(e.rojo));
@@ -88,6 +137,40 @@ function poner(nombre) {
   estadoTxt.textContent = `estado ${nombre} · fov ${camara.fov.toFixed(1)}° · pantalla ${PANTALLA_PX} px de alto`;
 }
 
+// El reflejo del ente en la pantalla: se renderiza solo el ente desde la cámara reflejada en el plano de la
+// pantalla (sin la habitación, que la taparía), y se pinta volteado, tenue y en modo «trama» dentro de la pantalla.
+function reflejar(g) {
+  colocarEnte(ENTE.reflejo);
+  const pos = camara.position.clone();
+  camara.position.set(pos.x, pos.y, 2 * centro.z - pos.z);
+  camara.lookAt(pos.x, pos.y, pos.z);
+  hab.grupo.visible = false;
+  luces.punto(L_EXTRA, [0.1, 1.3, -0.2], 0x9aa6c0, 0.9, 2.4);
+  motor.render();
+  const capa = document.createElement('canvas');
+  capa.width = capa.height = LADO;
+  const c = capa.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.drawImage(motor.lienzo, 0, 0, LADO, LADO);
+  g.save();
+  g.beginPath();
+  g.rect(PANT.x, PANT.y, PANT.w, PANT.h);
+  g.clip();
+  g.globalCompositeOperation = 'screen';
+  g.globalAlpha = 0.55;
+  g.translate(LADO, 0);
+  g.scale(-1, 1);
+  g.drawImage(capa, 0, 0);
+  g.restore();
+  // Todo como estaba.
+  hab.grupo.visible = true;
+  ente.grupo.visible = false;
+  luces.apagar(L_EXTRA);
+  camara.position.copy(pos);
+  camara.lookAt(centro);
+  motor.render();
+}
+
 // El lienzo interno (360) escalado ×3 sin suavizado; con escapar, el círculo y el texto encima.
 async function png(nombre) {
   const grande = document.createElement('canvas');
@@ -95,11 +178,15 @@ async function png(nombre) {
   const g = grande.getContext('2d');
   g.imageSmoothingEnabled = false;
   g.drawImage(motor.lienzo, 0, 0, LADO, LADO);
-  if (ESTADOS[nombre]?.escapar) {
+  const e = ESTADOS[nombre] ?? {};
+  if (e.reflejo) reflejar(g);
+  if (e.escapar || e.circulo) {
     g.fillStyle = '#000';
     g.beginPath();
     g.arc(BOLA.x, BOLA.y, BOLA.r, 0, Math.PI * 2);
     g.fill();
+  }
+  if (e.escapar) {
     // El texto a la resolución interna y escalado ×3, para que tenga los mismos píxeles gordos que el resto.
     const chico = document.createElement('canvas');
     chico.width = chico.height = INTERNO;
