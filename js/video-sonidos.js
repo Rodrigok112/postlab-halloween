@@ -201,3 +201,115 @@ export async function sonidoAmbiente() {
   }
   return normalizar(ps1(out), 0.6);
 }
+
+// Música de ambiente en crescendo (27/10), sacada de la referencia de voz de la persona responsable (9,4 s): doce
+// golpes graves («bum») sobre Do, sueltos al principio y en parejas al final, como un latido. Encima, un dron de
+// Do y Sol que se va abriendo y subiendo, un racimo agudo disonante (Do–Do#) que entra a la mitad y un barrido de
+// ruido en los últimos dos segundos; corta en seco al final.
+const GOLPES = [
+  [0.6, 48], [1.45, 48], [2.7, 48], [3.1, 47], [3.9, 50], [4.6, 48],
+  [5.7, 48], [6.05, 48], [6.75, 48], [7.35, 48], [8.2, 48], [8.55, 48],
+];
+export const MUSICA_S = 9.4;
+
+const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
+
+function reverb(ctx, segundos = 2.2) {
+  const n = Math.ceil(SR * segundos);
+  const b = ctx.createBuffer(1, n, SR);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 3;
+  const c = ctx.createConvolver();
+  c.buffer = b;
+  return c;
+}
+
+function musica(ctx, salida) {
+  const T = MUSICA_S;
+  const sala = reverb(ctx);
+  const mojado = ganancia(ctx, 0.35);
+  sala.connect(mojado).connect(salida);
+  const bus = ganancia(ctx, 1);
+  bus.connect(salida);
+  bus.connect(sala);
+  const k = (t) => t / T; // 0 → 1 a lo largo de la pieza
+
+  // Dron: Do1, Do2 y Sol2 en sierra, un poco desafinados, con el filtro abriéndose y el volumen subiendo.
+  const lp = filtro(ctx, 'lowpass', 220, 1.2);
+  const gd = ganancia(ctx, 0);
+  lp.connect(gd).connect(bus);
+  lp.frequency.setValueAtTime(220, 0);
+  lp.frequency.exponentialRampToValueAtTime(2600, T - 0.3);
+  gd.gain.setValueAtTime(0.0001, 0);
+  gd.gain.exponentialRampToValueAtTime(0.09, 1.5);
+  gd.gain.exponentialRampToValueAtTime(0.32, T - 0.2);
+  for (const [m, det] of [[36, 0], [48, -7], [48, 6], [55, 4]]) {
+    const o = tono(ctx, 'sawtooth', hz(m));
+    o.detune.value = det;
+    o.connect(lp);
+    o.start(0);
+    o.stop(T);
+  }
+
+  // Golpes: «bum» grave que cae de tono, con un golpe de ruido; cada vez más fuertes.
+  for (const [t, m] of GOLPES) {
+    const v = 0.35 + 0.65 * k(t);
+    const o = tono(ctx, 'sine', hz(m - 12));
+    const g = ganancia(ctx, 0);
+    o.connect(g).connect(bus);
+    o.frequency.setValueAtTime(hz(m), t);
+    o.frequency.exponentialRampToValueAtTime(hz(m - 24), t + 0.35);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.9 * v, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    o.start(t);
+    o.stop(t + 0.6);
+    const n = ruido(ctx, 0.12);
+    const gn = ganancia(ctx, 0);
+    n.connect(filtro(ctx, 'lowpass', 900)).connect(gn).connect(bus);
+    gn.gain.setValueAtTime(0.5 * v, t);
+    gn.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    n.start(t);
+  }
+
+  // Racimo agudo disonante con trémolo: entra a la mitad.
+  const gc = ganancia(ctx, 0);
+  const trem = tono(ctx, 'sine', 7);
+  const gt = ganancia(ctx, 0);
+  trem.connect(gt).connect(gc.gain);
+  gc.connect(filtro(ctx, 'lowpass', 5000)).connect(bus);
+  gc.gain.setValueAtTime(0, 0);
+  gc.gain.setValueAtTime(0.0001, 4.2);
+  gc.gain.exponentialRampToValueAtTime(0.06, T - 0.2);
+  gt.gain.setValueAtTime(0, 0);
+  gt.gain.linearRampToValueAtTime(0.03, T - 0.2);
+  for (const [m, det] of [[72, 0], [73, -10], [79, 8]]) {
+    const o = tono(ctx, 'triangle', hz(m));
+    o.detune.value = det;
+    o.connect(gc);
+    o.start(4.2);
+    o.stop(T);
+    o.detune.linearRampToValueAtTime(det + 60, T); // se va desafinando hacia arriba
+  }
+  trem.start(0);
+  trem.stop(T);
+
+  // Barrido de ruido que sube en los dos últimos segundos.
+  const br = ruido(ctx, 2.4);
+  const fb = filtro(ctx, 'bandpass', 300, 1.5);
+  const gb = ganancia(ctx, 0);
+  br.connect(fb).connect(gb).connect(bus);
+  fb.frequency.setValueAtTime(300, T - 2.4);
+  fb.frequency.exponentialRampToValueAtTime(6000, T - 0.05);
+  gb.gain.setValueAtTime(0.0001, T - 2.4);
+  gb.gain.exponentialRampToValueAtTime(0.25, T - 0.05);
+  br.start(T - 2.4);
+
+  // Corte en seco al final.
+  salida.gain.setValueAtTime(1, T - 0.03);
+  salida.gain.linearRampToValueAtTime(0, T);
+}
+
+export async function sonidoMusica() {
+  return normalizar(ps1(await render(MUSICA_S, musica)), 0.9);
+}

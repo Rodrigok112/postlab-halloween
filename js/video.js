@@ -12,7 +12,7 @@ import { cargarFotos } from './juego/texturas.js';
 import { createRng } from './glitch.js';
 import { grabarEn, thump, scream, screamQTV } from './audio.js';
 import { golpePuerta, portazo } from './juego/sonidos.js';
-import { sonidoEncendido, sonidoAmbiente } from './video-sonidos.js';
+import { sonidoEncendido, sonidoAmbiente, sonidoMusica } from './video-sonidos.js';
 
 const LADO = 1080;
 const INTERNO = 360;
@@ -241,6 +241,7 @@ async function guardarAmbiente() {
   const comoBuffer = (datos) => ({ getChannelData: () => datos, sampleRate: 44100 });
   await guardar('ordenador_encendido.wav', wav(comoBuffer(await sonidoEncendido())));
   await guardar('ordenador_ambiente_bucle.wav', wav(comoBuffer(await sonidoAmbiente())));
+  await guardar('musica_crescendo.wav', wav(comoBuffer(await sonidoMusica())));
   estadoTxt.textContent = 'sonidos del ordenador guardados en video/';
 }
 
