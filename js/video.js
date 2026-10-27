@@ -12,7 +12,7 @@ import { cargarFotos } from './juego/texturas.js';
 import { createRng } from './glitch.js';
 import { grabarEn, thump, scream, screamQTV } from './audio.js';
 import { golpePuerta, portazo } from './juego/sonidos.js';
-import { sonidoEncendido, sonidoAmbiente, sonidoMusica } from './video-sonidos.js';
+import { sonidoEncendido, sonidoAmbiente, sonidoMusica, pistas8 } from './video-sonidos.js';
 
 const LADO = 1080;
 const INTERNO = 360;
@@ -245,6 +245,16 @@ async function guardarAmbiente() {
   estadoTxt.textContent = 'sonidos del ordenador guardados en video/';
 }
 
+// Las pistas de 8 s sincronizadas con el montaje: música, efectos y mezcla.
+async function guardarPistas8() {
+  const comoBuffer = (datos) => ({ getChannelData: () => datos, sampleRate: 44100 });
+  const { musica, efectos, mezcla } = await pistas8();
+  await guardar('pista8_musica.wav', wav(comoBuffer(musica)));
+  await guardar('pista8_efectos.wav', wav(comoBuffer(efectos)));
+  await guardar('pista8_mezcla.wav', wav(comoBuffer(mezcla)));
+  estadoTxt.textContent = 'pistas de 8 s guardadas en video/';
+}
+
 // Solo las fotos de la animación.
 async function guardarFotos() {
   for (const nombre of Object.keys(ESTADOS).filter((n) => n.startsWith('foto_'))) {
@@ -279,4 +289,4 @@ bTodo.textContent = 'guardar todo';
 bTodo.addEventListener('click', () => guardarTodo().catch((e) => { estadoTxt.textContent = String(e); }));
 panel.append(bGuia, bTodo);
 poner('A');
-window.__video = { poner, guardarTodo, guardarFotos, guardarAmbiente, camara, hab, motor };
+window.__video = { poner, guardarTodo, guardarFotos, guardarAmbiente, guardarPistas8, camara, hab, motor };

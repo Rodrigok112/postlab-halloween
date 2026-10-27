@@ -2,6 +2,9 @@
 // encendido, en bucle. Se sintetizan sin altavoces (OfflineAudioContext) y luego se «pasan por una PS1»: la mitad
 // de frecuencia de muestreo (22 kHz, se nota en los agudos) y 10 bits, con algo de ruido de fondo.
 
+import { screamSamples } from './scream.js';
+import { createRng } from './glitch.js';
+
 const SR = 44100;
 
 function ruido(ctx, segundos) {
@@ -312,4 +315,200 @@ function musica(ctx, salida) {
 
 export async function sonidoMusica() {
   return normalizar(ps1(await render(MUSICA_S, musica)), 0.9);
+}
+
+// ---------- Pista de 8 s sincronizada con el montaje del vídeo (DROP_ANIMATION, 27/10) ----------
+// Lo que pasa en la imagen (25 fps): 0,20 se enciende la pantalla; 1,28–1,56 parpadea la bombilla y se queda
+// encendida; destellos rojos a 2,36 · 3,44 · 4,48–4,56 · 5,20; otro parpadeo de la luz a 4,64–4,80; apagón a 5,52;
+// «haz click para escapar» con rojo a 5,64 y 5,92; el ente asomado a 6,08; pulsos rojos a 6,24 · 6,84 · 7,40.
+export const PISTA_S = 8;
+const CORTES = {
+  enciende: 0.2,
+  parpadeos: [1.28, 1.36, 1.4, 1.44, 1.56, 4.64, 4.68, 4.72, 4.76, 4.8],
+  apagon: 5.52,
+  susto: 6.08,
+};
+// Golpes de la música: [segundo, nota midi, fuerza]. Los de la referencia de voz, movidos a los destellos rojos:
+// sueltos al principio, en parejas al final (4,48–4,60 y 5,64–5,92), y después del susto, latidos más lentos.
+const GOLPES_8 = [
+  [2.36, 48, 0.45], [3.44, 48, 0.55], [4.48, 48, 0.7], [4.6, 47, 0.6], [5.2, 50, 0.8],
+  [5.64, 48, 0.85], [5.92, 48, 0.95], [6.24, 48, 0.55], [6.84, 48, 0.45], [7.4, 48, 0.35],
+];
+
+function golpe(ctx, bus, t, m, v) {
+  const o = tono(ctx, 'sine', hz(m - 12));
+  const g = ganancia(ctx, 0);
+  o.connect(g).connect(bus);
+  o.frequency.setValueAtTime(hz(m), t);
+  o.frequency.exponentialRampToValueAtTime(hz(m - 24), t + 0.35);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.9 * v, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+  o.start(t);
+  o.stop(t + 0.6);
+  const n = ruido(ctx, 0.12);
+  const gn = ganancia(ctx, 0);
+  n.connect(filtro(ctx, 'lowpass', 900)).connect(gn).connect(bus);
+  gn.gain.setValueAtTime(0.5 * v, t);
+  gn.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  n.start(t);
+}
+
+// La música: el dron arranca con la pantalla y crece hasta el apagón, donde se corta en seco (solo queda un
+// retumbar grave que sube hasta el susto); en el susto, un golpe enorme con el racimo agudo a tope, y luego el
+// dron vuelve bajito y se apaga con los latidos.
+function musica8(ctx, salida) {
+  const sala = reverb(ctx);
+  const mojado = ganancia(ctx, 0.35);
+  sala.connect(mojado).connect(salida);
+  const bus = ganancia(ctx, 1);
+  bus.connect(salida);
+  bus.connect(sala);
+  const { enciende, apagon, susto } = CORTES;
+
+  // Dron.
+  const lp = filtro(ctx, 'lowpass', 200, 1.2);
+  const gd = ganancia(ctx, 0);
+  lp.connect(gd).connect(bus);
+  lp.frequency.setValueAtTime(200, enciende);
+  lp.frequency.exponentialRampToValueAtTime(2600, apagon);
+  lp.frequency.setValueAtTime(500, susto + 0.3);
+  lp.frequency.exponentialRampToValueAtTime(250, PISTA_S);
+  gd.gain.setValueAtTime(0.0001, enciende);
+  gd.gain.exponentialRampToValueAtTime(0.08, enciende + 1.0);
+  gd.gain.exponentialRampToValueAtTime(0.34, apagon - 0.02);
+  gd.gain.setValueAtTime(0.0001, apagon);
+  gd.gain.setValueAtTime(0.0001, susto + 0.3);
+  gd.gain.exponentialRampToValueAtTime(0.09, susto + 0.8);
+  gd.gain.exponentialRampToValueAtTime(0.0001, PISTA_S - 0.05);
+  for (const [m, det] of [[36, 0], [48, -7], [48, 6], [55, 4]]) {
+    const o = tono(ctx, 'sawtooth', hz(m));
+    o.detune.value = det;
+    o.connect(lp);
+    o.start(enciende);
+    o.stop(PISTA_S);
+  }
+
+  // Racimo agudo disonante con trémolo: entra a los 3 s, se corta en el apagón y estalla en el susto.
+  const gc = ganancia(ctx, 0);
+  const trem = tono(ctx, 'sine', 7);
+  const gt = ganancia(ctx, 0.02);
+  trem.connect(gt).connect(gc.gain);
+  gc.connect(filtro(ctx, 'lowpass', 5000)).connect(bus);
+  gc.gain.setValueAtTime(0.0001, 3.0);
+  gc.gain.exponentialRampToValueAtTime(0.06, apagon - 0.02);
+  gc.gain.setValueAtTime(0, apagon);
+  gc.gain.setValueAtTime(0.2, susto);
+  gc.gain.exponentialRampToValueAtTime(0.0001, susto + 1.4);
+  for (const [m, det] of [[72, 0], [73, -10], [79, 8]]) {
+    const o = tono(ctx, 'triangle', hz(m));
+    o.detune.setValueAtTime(det, 3.0);
+    o.detune.linearRampToValueAtTime(det + 60, apagon);
+    o.connect(gc);
+    o.start(3.0);
+    o.stop(susto + 1.5);
+  }
+  trem.start(3.0);
+  trem.stop(susto + 1.5);
+
+  // Barrido de ruido que sube hasta el apagón y se corta en seco.
+  const br = ruido(ctx, 1.6);
+  const fb = filtro(ctx, 'bandpass', 300, 1.5);
+  const gb = ganancia(ctx, 0);
+  br.connect(fb).connect(gb).connect(bus);
+  fb.frequency.setValueAtTime(300, apagon - 1.6);
+  fb.frequency.exponentialRampToValueAtTime(6000, apagon);
+  gb.gain.setValueAtTime(0.0001, apagon - 1.6);
+  gb.gain.exponentialRampToValueAtTime(0.22, apagon - 0.02);
+  gb.gain.setValueAtTime(0, apagon);
+  br.start(apagon - 1.6);
+
+  // En el apagón, un retumbar grave que sube hasta el susto.
+  const sub = tono(ctx, 'sine', 32);
+  const gs = ganancia(ctx, 0);
+  sub.connect(gs).connect(bus);
+  gs.gain.setValueAtTime(0.0001, apagon);
+  gs.gain.exponentialRampToValueAtTime(0.35, susto - 0.01);
+  gs.gain.setValueAtTime(0, susto);
+  sub.start(apagon);
+  sub.stop(susto + 0.05);
+
+  for (const [t, m, v] of GOLPES_8) golpe(ctx, bus, t, m, v);
+  // El golpe del susto: el más grave y fuerte.
+  golpe(ctx, bus, susto, 43, 1.3);
+  golpe(ctx, bus, susto + 0.01, 31, 1.0);
+}
+
+// Efectos: el ordenador que se enciende (con su zumbido debajo), los chasquidos de la bombilla al parpadear y el
+// grito del ente en el susto. encendidoDatos y ambienteDatos: los dos sonidos ya hechos del ordenador.
+function efectos8(ctx, salida, encendidoDatos, ambienteDatos) {
+  const { enciende, parpadeos, susto } = CORTES;
+  const pon = (datos, t, v, hasta) => {
+    const b = ctx.createBuffer(1, datos.length, SR);
+    b.copyToChannel(datos, 0);
+    const s = ctx.createBufferSource();
+    s.buffer = b;
+    const g = ganancia(ctx, v);
+    s.connect(g).connect(salida);
+    s.start(t);
+    if (hasta) {
+      g.gain.setValueAtTime(v, hasta - 0.3);
+      g.gain.linearRampToValueAtTime(0, hasta);
+    }
+  };
+  pon(encendidoDatos, enciende - 0.02, 0.55);
+  pon(ambienteDatos, 2.0, 0.35, PISTA_S);
+  // Bombilla: chasquido y un zumbido eléctrico corto en cada parpadeo.
+  for (const t of parpadeos) {
+    const n = ruido(ctx, 0.02);
+    const gn = ganancia(ctx, 0);
+    n.connect(filtro(ctx, 'highpass', 2500)).connect(gn).connect(salida);
+    gn.gain.setValueAtTime(0.35, t);
+    gn.gain.exponentialRampToValueAtTime(0.001, t + 0.015);
+    n.start(t);
+    const z = tono(ctx, 'sawtooth', 100);
+    const gz = ganancia(ctx, 0);
+    z.connect(filtro(ctx, 'lowpass', 1500)).connect(gz).connect(salida);
+    gz.gain.setValueAtTime(0.06, t);
+    gz.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    z.start(t);
+    z.stop(t + 0.06);
+  }
+  // El grito del susto: tres gritos a la vez, saturados (como el de «QUIERO TU VIDA»).
+  const grito = ctx.createBuffer(1, Math.ceil(SR * 1.6), SR);
+  grito.copyToChannel(screamSamples(SR, 1.6, createRng(1031)), 0);
+  const sat = ctx.createWaveShaper();
+  const curva = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) curva[i] = Math.tanh(((i / 1023) * 2 - 1) * 3);
+  sat.curve = curva;
+  const gg = ganancia(ctx, 0);
+  sat.connect(filtro(ctx, 'lowpass', 7500)).connect(gg).connect(salida);
+  gg.gain.setValueAtTime(0.0001, susto);
+  gg.gain.exponentialRampToValueAtTime(0.7, susto + 0.03);
+  gg.gain.setValueAtTime(0.7, susto + 0.9);
+  gg.gain.exponentialRampToValueAtTime(0.0001, susto + 1.5);
+  for (const rate of [0.62, 0.86, 1.12]) {
+    const s = ctx.createBufferSource();
+    s.buffer = grito;
+    s.playbackRate.value = rate;
+    s.connect(ganancia(ctx, 0.5)).connect(sat);
+    s.start(susto);
+  }
+}
+
+// Las tres pistas de 8 s: música, efectos y las dos juntas.
+export async function pistas8() {
+  const encendidoDatos = ps1(await render(6, encendido));
+  const ambienteDatos = await sonidoAmbiente();
+  const musica = normalizar(ps1(await render(PISTA_S, musica8)), 0.85);
+  const efectos = normalizar(ps1(await render(PISTA_S, (ctx, salida) => efectos8(ctx, salida, encendidoDatos, ambienteDatos))), 0.85);
+  const mezcla = normalizar(ps1(await render(PISTA_S, (ctx, salida) => {
+    const gm = ganancia(ctx, 0.8);
+    const ge = ganancia(ctx, 0.7);
+    gm.connect(salida);
+    ge.connect(salida);
+    musica8(ctx, gm);
+    efectos8(ctx, ge, encendidoDatos, ambienteDatos);
+  })), 0.9);
+  return { musica, efectos, mezcla };
 }
