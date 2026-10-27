@@ -62,7 +62,11 @@ const SALIDA_DELANTE_M = 8;
 const BRAZOS_POOL = 16;
 // Zoom al ente cuando revienta la puerta del cruce (fov en grados; el normal es 68).
 const FOV = 68;
-const FOV_PUERTA = 26;
+const FOV_PUERTA = 46;
+// Cuando revienta la puerta del cruce, el ente entra en tu pasillo y se planta a esta distancia de ti (m), con los
+// ojos a esta altura: encorvado bajo el techo de 2,5 m, más alto que tú.
+const PLANTADO_M = 2.6;
+const OJOS_PLANTADO = 2.15;
 // Presentación de la masa: zoom rápido al fondo de su pasillo, la vemos cruzar a toda prisa y zoom de vuelta.
 const MASA_S = 2.0;
 // Gritos agónicos del ente mientras te persigue (ms entre uno y otro).
@@ -243,13 +247,14 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   // Inclina al ente (sobre su pose) hasta que sus ojos quedan a la altura de los tuyos, y devuelve dónde quedan.
   // Al inclinarse los ojos bajan (en todas las poses salvo «despliega»), así que basta una búsqueda binaria.
   const ojosEnte = new THREE.Vector3();
-  const ojosAlOjo = (max = 2.4) => {
+  // altura: a qué altura dejar los ojos (por defecto, los tuyos).
+  const ojosAlOjo = (max = 2.4, altura = OJO_Y) => {
     let lo = 0, hi = max;
     for (let i = 0; i < 9; i++) {
       const mid = (lo + hi) / 2;
       ente.agacharse(mid);
       ente.grupo.updateMatrixWorld(true);
-      if (ente.ojos[0].getWorldPosition(ojosEnte).y > OJO_Y) lo = mid; else hi = mid;
+      if (ente.ojos[0].getWorldPosition(ojosEnte).y > altura) lo = mid; else hi = mid;
     }
     ente.agacharse((lo + hi) / 2);
     ente.grupo.updateMatrixWorld(true);
@@ -753,6 +758,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     let revientaDesde = 0;
     let gritado = false;
     let escenaPausa = null;
+    let ojosPuerta = null; // dónde quedan los ojos del ente cuando se planta delante (para mirarle a la cara)
     const reventar = (ahora) => {
       pausa = true;
       escenaPausa = escenaRevienta;
@@ -809,11 +815,22 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const p = rec.poseEn(c.jugador);
       const ida = smooth(t / 0.45);
       const vuelta = smooth((t - (REVIENTA_S - 0.35)) / 0.35);
-      camaraEn(p.x, p.z, p.rumbo + Math.PI * (ida - vuelta), 0);
-      // Zoom al ente mientras sale (se ve pequeño a 6 m) y de vuelta al girarte.
-      const zoom = smooth((t - 0.5) / 0.5) * (1 - vuelta);
+      // Te giras hacia él y, cuando se planta delante, levantas la vista hacia su cara.
+      // Te giras hacia él y, cuando se planta delante, la mirada va a sus ojos (arriba y al centro).
+      const mirar = smooth((t - 1.5) / 0.6) * (1 - vuelta);
+      let yaw = p.rumbo + Math.PI * (ida - vuelta);
+      let pitch = 0;
+      if (ojosPuerta) {
+        const dx = ojosPuerta.x - p.x, dz = ojosPuerta.z - p.z;
+        const hacia = Math.atan2(-dx, -dz);
+        yaw += Math.atan2(Math.sin(hacia - yaw), Math.cos(hacia - yaw)) * mirar;
+        pitch = Math.atan2(ojosPuerta.y - OJO_Y, Math.hypot(dx, dz)) * mirar;
+      }
+      camaraEn(p.x, p.z, yaw, pitch);
+      // Zoom mientras se levanta delante de ti, y de vuelta al girarte.
+      const zoom = smooth((t - 1.5) / 0.6) * (1 - vuelta);
       ponerFov(FOV + (FOV_PUERTA - FOV) * zoom);
-      escena.fog.far = 13 + 9 * zoom; // con el zoom, la niebla no se lo come
+      escena.fog.far = 13 + 6 * zoom; // que la niebla no se lo coma
       if (t >= 0.25 && !hab.izquierdaRota()) {
         hab.estallar('izquierda');
         portazo();
@@ -825,24 +842,49 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (t >= 0.25 && t < 1.9 && rng() < 0.6) glitchCruce.sacudir(PUERTA_CRUCE, 1.5, 0.2, rng);
       else glitchCruce.restaurar();
       if (t >= 0.6) {
-        // Sale a cuatro patas hacia el cruce; se levanta de espaldas a ti y gira la cabeza 180° hasta mirarte.
-        const u = smooth((t - 0.6) / 1.2);
-        const x = PUERTA_CRUCE_X + 0.3 + (CRUCE.x + 0.4 - (PUERTA_CRUCE_X + 0.3)) * u;
-        const haciaTi = Math.atan2(p.x - x, p.z - CRUCE.z);
+        // Sale a cuatro patas de la puerta al cruce y entra en tu pasillo; se levanta mientras avanza y se planta
+        // a PLANTADO_M de ti, de frente, encorvado bajo el techo y más alto que tú; abre los brazos y te grita.
         ente.grupo.visible = true;
-        ente.grupo.position.set(x, 0, CRUCE.z);
-        if (ticEnte(t + 3000, t < 2.0 ? 2 : 1)) {
-          if (t < 1.8) {
-            ente.grupo.rotation.y = -Math.PI / 2;
+        // Mucho glitch mientras sale; plantado delante, sin glitch, para que te mire recto.
+        if (ticEnte(t + 3000, t < 2.0 ? 2 : t < 2.2 ? 1 : 0)) {
+          const plantado = rec.poseEn(Math.max(1.2, c.jugador - PLANTADO_M));
+          const k = paso12(t);
+          let x, z, mira, altura;
+          if (k < 1.4) {
+            const u = smooth((k - 0.6) / 0.8);
+            x = PUERTA_CRUCE_X + 0.3 + (CRUCE.x - (PUERTA_CRUCE_X + 0.3)) * u;
+            z = CRUCE.z;
+            mira = -Math.PI / 2; // hacia −x, saliendo de la puerta
             ente.pose('cuatroPatas');
-            ente.andar(t * 6);
-            ojosAlOjo();
+            ente.andar(k * 6);
+            ente.abrir(0);
+            altura = null;
           } else {
-            ente.grupo.rotation.y = haciaTi + Math.PI; // de espaldas
-            ente.andar(0);
-            ente.pose(t >= 2.9 ? 'grito' : mezclarPoses(POSES.cuatroPatas, POSES.enPie, smooth((t - 1.8) / 0.5)));
-            ente.cabezaHacia(Math.PI * smooth((t - 2.15) / 0.75));
-            ojosAlOjo(); // encorvado, con la cabeza a tu altura (y bajo el techo de 2,5 m)
+            const u = smooth((k - 1.4) / 0.9);
+            // En el grito se inclina hacia ti.
+            const echa = smooth((k - 2.9) / 0.25);
+            x = CRUCE.x + (plantado.x - CRUCE.x) * u;
+            z = CRUCE.z + (plantado.z - CRUCE.z) * u;
+            x += (p.x - x) * 0.12 * echa;
+            z += (p.z - z) * 0.12 * echa;
+            mira = Math.atan2(p.x - x, p.z - z);
+            // Grita de cara a ti (la pose «grito» echa la cabeza hacia atrás): boca abierta y las manos hacia ti.
+            ente.pose(mezclarPoses(POSES.cuatroPatas, POSES.reposo, u));
+            ente.andar(u < 1 ? k * 5 : 0);
+            ente.abrir(smooth((k - 2.1) / 0.6) * (1 - echa));
+            ente.alcanzar(0.7 * echa);
+            ente.cabezaHacia(Math.sin(k * 3) * 0.12 * (1 - echa));
+            altura = 1.75 + (OJOS_PLANTADO - 1.75) * u - 0.2 * echa;
+          }
+          ente.grupo.position.set(x, 0, z);
+          ente.grupo.rotation.y = mira;
+          if (altura === null) { ente.agacharse(0); ojosPuerta = null; } else {
+            // Los ojos (no los pies) donde toca: sobre la línea que va hacia ti.
+            const o = ojosAlOjo(2.4, altura);
+            ente.grupo.position.x += x - o.x;
+            ente.grupo.position.z += z - o.z;
+            ente.grupo.updateMatrixWorld(true);
+            ojosPuerta = ente.ojos[0].getWorldPosition(new THREE.Vector3());
           }
         }
         if (!gritado && t >= 2.9) {
@@ -861,8 +903,11 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         glitchCruce.restaurar();
         ente.grupo.visible = false;
         ente.boca(0);
+        ente.abrir(0);
+        ente.alcanzar(0);
         ente.cabezaHacia(0);
         ente.pose('reposo');
+        ojosPuerta = null;
         c = soltar(c, 0);
         ultimo = ahora;
       }

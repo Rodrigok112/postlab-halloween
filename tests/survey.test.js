@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   STEPS, createSurvey, currentStep, isAuto, questionNumber, answer, advance, unlock, glitchLevel,
-  ENTE_MS, RAYADO_MS,
+  ENTE_MS, RAYADO_MS, BLANCO_MS, golpeteoActivo,
 } from '../js/survey.js';
 
 const ORDEN = ['inicio', 'nombre', 'solas', 'sonreir', 'despertar', 'estres', 'tipica', 'corre', 'amigos',
-  'familia', 'rayado', 'madre', 'ente', 'morir', 'buscan', 'lugar', 'aqui', 'final'];
+  'familia', 'rayado', 'madre', 'ente', 'morir', 'buscan', 'lugar', 'aqui', 'blanco', 'final'];
 
 const at = (id, extra = {}) => ({ index: ORDEN.indexOf(id), loop: 1, locked: false, ended: null, nombre: 'Lucía', ...extra });
 
@@ -150,9 +150,25 @@ test('la cara rosa desaparece desde «miedo a morir»; ya no hay mano', () => {
   assert.equal(STEPS.filter((x) => 'mano' in x).length, 0);
 });
 
-test('la pregunta final va sin música', () => {
-  assert.equal(STEPS.find((x) => x.id === 'final').sinMusica, true);
-  assert.equal(STEPS.filter((x) => x.sinMusica).length, 1);
+test('antes de la final, todo en blanco y en silencio, como si se hubiera roto', () => {
+  const b = STEPS.find((x) => x.id === 'blanco');
+  assert.equal(b.kind, 'blanco');
+  assert.equal(isAuto(b), true);
+  assert.equal(b.sinMusica, true);
+  assert.equal(b.nivel, 0);
+  assert.ok(BLANCO_MS >= 1500 && BLANCO_MS <= 3000);
+  assert.equal(currentStep(advance(at('blanco'))).id, 'final');
+});
+
+test('la final empieza limpia, sin golpes; desde el primer No, golpeteo constante', () => {
+  assert.equal(golpeteoActivo(at('final')), false);
+  assert.equal(golpeteoActivo(at('final', { loop: 2 })), true);
+  assert.equal(golpeteoActivo(at('final', { loop: 5 })), true);
+  assert.equal(golpeteoActivo(at('lugar')), false);
+});
+
+test('la música se corta en seco en el blanco de antes de la final, y la final sigue sin música', () => {
+  assert.deepEqual(STEPS.filter((x) => x.sinMusica).map((x) => x.id), ['blanco', 'final']);
 });
 
 test('sin golpes en las preguntas 1–2, desde la 3; en la final, golpeteo constante sin espera', () => {

@@ -554,7 +554,8 @@ export function crearEnte() {
       for (const t of tiras) t.rotation.x = (rnd() - 0.5) * 0.5;
       for (const p of pelos) p.rotation.x = (rnd() - 0.5) * 0.35;
       cabezaHasta--;
-      if (cabezaHasta <= 0) giro.rotation.z = 0;
+      // Sin glitch (nivel 0) la cabeza vuelve a su sitio al momento.
+      if (cabezaHasta <= 0 || nivel === 0) giro.rotation.z = 0;
       if (nivel > 0 && rnd() < (nivel > 1 ? 0.15 : 0.03)) {
         giro.rotation.z = rnd() < 0.5 ? Math.PI / 2 : -Math.PI / 2;
         cabezaHasta = 6 + Math.floor(rnd() * 14);

@@ -1,14 +1,14 @@
 // Flujo de la encuesta: pinta cada paso, programa esperas, golpes, gritos y destellos, y entrega el camino al juego.
 
 import {
-  createSurvey, currentStep, answer, advance, unlock, glitchLevel, ENTE_MS, RAYADO_MS,
+  createSurvey, currentStep, answer, advance, unlock, glitchLevel, golpeteoActivo, ENTE_MS, RAYADO_MS, BLANCO_MS,
 } from './survey.js';
 import { createRng, createFlashGuard } from './glitch.js';
 import { unlockAudio, thump, scream, screamQTV, tapeStop } from './audio.js';
 import { startMusic, setMusicLevel, stopMusic } from './music.js';
 import {
   renderInicio, renderNombre, renderQuestion, renderCortada, renderDestello, renderEnte, renderRayado,
-  renderQuieroTuVida, renderBlack, renderMuerte,
+  renderQuieroTuVida, renderBlack, renderBlanco, renderMuerte,
 } from './screens.js';
 
 const QTV_MS = 2500;
@@ -129,8 +129,8 @@ function paint() {
   setNivel(level);
   setMusicLevel(level);
   gritos(CON_GRITOS.has(st.id));
-  golpeteo(Boolean(st.golpeteo));
-  // En la pregunta final la música se corta en seco: quedan los golpes y los gritos.
+  golpeteo(golpeteoActivo(state));
+  // Antes de la final la música se corta en seco (blanco); en la final, desde el primer No, golpes y gritos.
   if (st.sinMusica) stopMusic();
 
   switch (st.kind) {
@@ -152,6 +152,11 @@ function paint() {
       tapeStop(RAYADO_MS / 1000);
       view = renderRayado(app, rng, RAYADO_MS);
       later(() => { startMusic(); state = advance(state); paint(); }, RAYADO_MS);
+      break;
+    case 'blanco':
+      // Todo en blanco y en silencio, como si se hubiera roto.
+      renderBlanco(app);
+      later(() => { state = advance(state); paint(); }, BLANCO_MS);
       break;
     case 'ente':
       renderEnte(app);

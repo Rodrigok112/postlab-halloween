@@ -6,11 +6,14 @@ export const MAX_NOMBRE = 20;
 // Un par de fotogramas: se ve, pero no da tiempo a mirarlo.
 export const ENTE_MS = 70;
 export const RAYADO_MS = 2000;
+// Antes de la final, todo en blanco y en silencio (28/10).
+export const BLANCO_MS = 2200;
 
 // nivel: corrupción visual y de la música. thumps/delay: golpes y espera tras responder.
 // destellos: ms visibles y gap de negro entre uno y otro (como mucho 3 por segundo).
 // glitchPasajero: unas letras se rompen y se ordenan. sinCara: ya no está la carita rosa.
-// golpeteo: golpes constantes. sinMusica: la música se corta en seco.
+// golpeteo: golpes constantes (en la final, desde el primer No). sinMusica: la música se corta en seco.
+// blanco: pantalla en blanco, como si se hubiera roto, antes de la final.
 export const STEPS = [
   { id: 'inicio', kind: 'inicio', nivel: 0 },
   { id: 'nombre', kind: 'nombre', nivel: 0, delay: 1000 },
@@ -29,10 +32,11 @@ export const STEPS = [
   { id: 'buscan', kind: 'destellos', nivel: 4, textos: ['TE BUSCAN'], ms: 70, gap: 200 },
   { id: 'lugar', kind: 'pregunta', nivel: 4, thumps: 3, delay: 2800, sinCara: true, gritos: true },
   { id: 'aqui', kind: 'destellos', nivel: 5, textos: ['ESTÁ AQUÍ', 'CORRE', 'ESTÁ AQUÍ'], ms: 80, gap: 260 },
+  { id: 'blanco', kind: 'blanco', nivel: 0, sinMusica: true },
   { id: 'final', kind: 'final', nivel: 4, sinCara: true, golpeteo: true, sinMusica: true },
 ];
 
-const AUTO = new Set(['cortada', 'destellos', 'ente', 'rayado']);
+const AUTO = new Set(['cortada', 'destellos', 'ente', 'rayado', 'blanco']);
 const NUMERADOS = new Set(['pregunta', 'cortada', 'final']);
 
 export function createSurvey() {
@@ -91,6 +95,12 @@ export function unlock(s) {
 
 // La pregunta final empieza limpia, para que se pueda leer, y con cada No se rompe a lo grande.
 const NIVEL_FINAL = [0, 3, 5];
+
+// La final empieza limpia, es el momento justo antes de que se rompa: los golpes llegan con el primer No.
+export function golpeteoActivo(s) {
+  const step = currentStep(s);
+  return Boolean(step.golpeteo) && !(step.kind === 'final' && s.loop <= 1);
+}
 
 export function glitchLevel(s) {
   const step = currentStep(s);

@@ -209,6 +209,8 @@ body.nivel-5 .si-media { border-radius: 0; }
 
 /* ---------- Pantallas negras ---------- */
 
+/* Antes de la final: todo en blanco, como si se hubiera roto. */
+.blanco { position: fixed; inset: 0; z-index: 40; background: #fff; }
 .negro {
   position: fixed; inset: 0; z-index: 40;
   background: #000;

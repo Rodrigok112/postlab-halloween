@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO, ahiEstas, PSICOLOGO } from '../js/texts.js';
+import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO, ahiEstas, PSICOLOGO, escrituraFinal, ESCRITURA_FINAL } from '../js/texts.js';
 import { STEPS } from '../js/survey.js';
 
 const at = (id, loop = 1) => ({ index: STEPS.findIndex((x) => x.id === id), loop, locked: false, ended: null, nombre: 'Lucía' });
@@ -46,8 +46,8 @@ test('preguntas de bienestar y del medio', () => {
 
 test('la pregunta final usa el nombre y muta en cada vuelta', () => {
   const t = (loop) => { const { title, sub } = textFor(at('final', loop)); return { title, sub }; };
-  assert.deepEqual(t(1), { title: '¿puedo ser tú a partir de ahora, Lucía?', sub: '' });
-  assert.deepEqual(t(2), { title: '¿puedo ser tú a partir de ahora, Lucía?', sub: '¿seguro? piénsalo otra vez.' });
+  assert.deepEqual(t(1), { title: '¿puedo tomar tu cuerpo y ser tú desde ahora?', sub: '' });
+  assert.deepEqual(t(2), { title: '¿puedo tomar tu cuerpo y ser tú desde ahora, Lucía?', sub: '¿seguro? piénsalo otra vez.' });
   assert.deepEqual(t(3), { title: 'déjame ser tú, Lucía.', sub: 'jaja. vale, otra vez.' });
   assert.deepEqual(t(4), { title: 'voy a ser tú.', sub: 'no tienes que hacer nada.' });
   assert.deepEqual(t(5), { title: 'ya soy Lucía.', sub: '' });
@@ -55,8 +55,13 @@ test('la pregunta final usa el nombre y muta en cada vuelta', () => {
 });
 
 test('el nombre se inserta tal cual, aunque tenga $ o HTML', () => {
-  const s = { ...at('final'), nombre: '$&<i>x' };
-  assert.equal(textFor(s).title, '¿puedo ser tú a partir de ahora, $&<i>x?');
+  const s = { ...at('final', 2), nombre: '$&<i>x' };
+  assert.equal(textFor(s).title, '¿puedo tomar tu cuerpo y ser tú desde ahora, $&<i>x?');
+});
+
+test('la primera vez, la final se escribe sola: primero el nombre, despacio, y luego la pregunta', () => {
+  assert.deepEqual(escrituraFinal('Lucía'), ['Lucía', '¿puedo tomar tu cuerpo y ser tú desde ahora?']);
+  assert.ok(ESCRITURA_FINAL.nombreMs > ESCRITURA_FINAL.letraMs, 'el nombre, más despacio');
 });
 
 test('todos los pasos con respuesta tienen texto', () => {

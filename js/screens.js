@@ -2,7 +2,9 @@
 // Todo texto del usuario (el nombre) se pinta con textContent, nunca como HTML.
 
 import { buttonsForStep, fleePosition, createFleeBudget } from './layout.js';
-import { textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO } from './texts.js';
+import {
+  textFor, contador, HEADER, INICIO, NOMBRE, MUERTE, TIPICA_CORTE, JEJE_MS, TOTAL_PROMETIDO, escrituraFinal, ESCRITURA_FINAL,
+} from './texts.js';
 import { corrupt } from './glitch.js';
 import { glitchLevel, questionNumber, currentStep, MAX_NOMBRE } from './survey.js';
 
@@ -161,6 +163,26 @@ export function renderQuestion(root, s, onAnswer, rng) {
     cleanups.push(() => ts.forEach(clearTimeout));
   }
   scramble();
+
+  if (esFinal && s.loop === 1) {
+    // Se escribe sola: el nombre, despacio; se queda; se borra y se escribe la pregunta. Luego, los botones.
+    const [nombre, frase] = escrituraFinal(s.nombre);
+    const { nombreMs, pausaMs, letraMs } = ESCRITURA_FINAL;
+    fila.style.visibility = 'hidden';
+    pregunta.textContent = '';
+    sub.textContent = '';
+    const ts = [];
+    const letras = (texto, desde, ms) => [...texto].forEach((_, i) => ts.push(setTimeout(() => {
+      pregunta.textContent = [...texto].slice(0, i + 1).join('');
+    }, desde + (i + 1) * ms)));
+    const nNombre = [...nombre].length;
+    letras(nombre, 400, nombreMs);
+    const borra = 400 + nNombre * nombreMs + pausaMs;
+    ts.push(setTimeout(() => { pregunta.textContent = ''; }, borra));
+    letras(frase, borra + 350, letraMs);
+    ts.push(setTimeout(() => { fila.style.visibility = ''; }, borra + 350 + [...frase].length * letraMs + 300));
+    cleanups.push(() => ts.forEach(clearTimeout));
+  }
 
   if (extra) {
     const t = setTimeout(() => { extra = ''; scramble(); }, JEJE_MS);
@@ -339,6 +361,10 @@ function pantallaNegra(root) {
 
 export function renderBlack(root) {
   pantallaNegra(root);
+}
+
+export function renderBlanco(root) {
+  root.replaceChildren(el('div', 'blanco'));
 }
 
 export function renderEnte(root) {

@@ -51,12 +51,19 @@ const PREGUNTAS = {
 
 // Pregunta final, una entrada por vuelta (1 a 5). N = nombre.
 const FINAL = [
-  { title: '¿puedo ser tú a partir de ahora, N?', sub: '' },
-  { title: '¿puedo ser tú a partir de ahora, N?', sub: '¿seguro? piénsalo otra vez.' },
+  { title: '¿puedo tomar tu cuerpo y ser tú desde ahora?', sub: '' },
+  { title: '¿puedo tomar tu cuerpo y ser tú desde ahora, N?', sub: '¿seguro? piénsalo otra vez.' },
   { title: 'déjame ser tú, N.', sub: 'jaja. vale, otra vez.' },
   { title: 'voy a ser tú.', sub: 'no tienes que hacer nada.' },
   { title: 'ya soy N.', sub: '' },
 ];
+
+// La primera vez, la final se escribe sola: el nombre, letra a letra y despacio; se queda un momento; se borra y
+// se escribe la pregunta. Solo entonces aparecen los botones.
+export const ESCRITURA_FINAL = { nombreMs: 280, pausaMs: 1100, letraMs: 65 };
+export function escrituraFinal(nombre) {
+  return [nombre, FINAL[0].title];
+}
 
 export function textFor(s) {
   const step = currentStep(s);
