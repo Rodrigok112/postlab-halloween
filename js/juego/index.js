@@ -51,7 +51,7 @@ const REVIENTA_S = 3.8;
 const BRAZO_CADA_M = [1.8, 3.2];
 const BRAZO_PAR = 0.35; // probabilidad de que salgan dos (uno en cada pared)
 const BRAZO_SE_TIRA_M = 1.6;
-const RITMO_LIBRE = 9;
+const RITMO_LIBRE = 11;
 // Sombra del ente en la pared: aparece cuando está a menos de esto (m).
 const SOMBRA_M = 4.5;
 // Por la izquierda (24/10): tras la esquina de la masa salen todos los brazos a la vez (uno cada OLEADA_CADA_M,

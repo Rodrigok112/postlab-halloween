@@ -1,17 +1,17 @@
 // Carrera por el pasillo: cada toque avanza un paso. El ente empieza encerrado tras la puerta del cruce;
 // cuando llevas PUERTA_M metros la revienta (soltar) y te persigue a ritmo constante. Funciones puras.
 // Extremadamente difícil a propósito (28/10): con una mano no se puede; con dos pulgares hay que ir casi al
-// máximo (unos 10 toques por segundo de media), porque el ente acelera según avanzas y, si aflojas, te pilla al
+// máximo (unos 12,5 toques por segundo de media), porque el ente acelera según avanzas y, si aflojas, te pilla al
 // final del recorrido.
 
 export const PASO_M = 0.38; // metros por toque
 export const LARGO_M = 76; // largo por defecto: el camino izquierdo (el derecho mide 95)
 export const PUERTA_M = 6; // a esta distancia del cruce el ente revienta la puerta y sale
-export const VEL_ENTE = 3.6; // m/s al salir: unos 9,5 toques por segundo
-export const VEL_ENTE_FINAL = 4.4; // m/s al final del recorrido: unos 11,6 toques por segundo
+export const VEL_ENTE = 4.4; // m/s al salir: unos 11,6 toques por segundo
+export const VEL_ENTE_FINAL = 5.6; // m/s al final del recorrido: unos 14,7 toques por segundo
 export const ATRAPA_M = 0.8;
 // Si un brazo de la pared te agarra, cada toque avanza la mitad hasta que das estos toques.
-export const AGARRE_TOQUES = 22;
+export const AGARRE_TOQUES = 28;
 // Un fotograma nunca avanza más que esto: si la pestaña se congela, el ente no aparece encima de golpe.
 export const DT_MAX_S = 0.1;
 
