@@ -12,6 +12,7 @@ import { cargarFotos } from './juego/texturas.js';
 import { createRng } from './glitch.js';
 import { grabarEn, thump, scream, screamQTV } from './audio.js';
 import { golpePuerta, portazo } from './juego/sonidos.js';
+import { sonidoEncendido, sonidoAmbiente } from './video-sonidos.js';
 
 const LADO = 1080;
 const INTERNO = 360;
@@ -235,6 +236,14 @@ async function grabar(segundos, momentos) {
   }
 }
 
+// El ordenador que se enciende y su ambiente en bucle.
+async function guardarAmbiente() {
+  const comoBuffer = (datos) => ({ getChannelData: () => datos, sampleRate: 44100 });
+  await guardar('ordenador_encendido.wav', wav(comoBuffer(await sonidoEncendido())));
+  await guardar('ordenador_ambiente_bucle.wav', wav(comoBuffer(await sonidoAmbiente())));
+  estadoTxt.textContent = 'sonidos del ordenador guardados en video/';
+}
+
 // Solo las fotos de la animación.
 async function guardarFotos() {
   for (const nombre of Object.keys(ESTADOS).filter((n) => n.startsWith('foto_'))) {
@@ -269,4 +278,4 @@ bTodo.textContent = 'guardar todo';
 bTodo.addEventListener('click', () => guardarTodo().catch((e) => { estadoTxt.textContent = String(e); }));
 panel.append(bGuia, bTodo);
 poner('A');
-window.__video = { poner, guardarTodo, guardarFotos, camara, hab, motor };
+window.__video = { poner, guardarTodo, guardarFotos, guardarAmbiente, camara, hab, motor };
