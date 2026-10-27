@@ -7,7 +7,7 @@ import { VEL_ENTE, PASO_M } from './carrera.js';
 
 const FPS = 12;
 // Toques por segundo que llenan la barrita, y cuántos segmentos tiene.
-export const RITMO_MAX = 9;
+export const RITMO_MAX = 10;
 export const SEGMENTOS = 12;
 
 // La manita, con el índice hacia arriba. X = borde, W = piel.

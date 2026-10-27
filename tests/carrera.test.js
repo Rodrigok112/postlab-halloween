@@ -41,10 +41,10 @@ test('cada toque avanza un paso y cuenta una vez', () => {
   assert.ok(Math.abs(c.jugador - 2 * PASO_M) < 1e-9);
 });
 
-test('si un brazo te agarra, cada toque avanza la mitad hasta que te sueltas con 10 toques', () => {
+test('si un brazo te agarra, cada toque avanza la mitad hasta que te sueltas con 14 toques', () => {
   let c = agarrar(createCarrera(IZQ));
   assert.equal(c.agarre, AGARRE_TOQUES);
-  assert.equal(AGARRE_TOQUES, 10);
+  assert.equal(AGARRE_TOQUES, 14);
   c = tap(c);
   assert.ok(Math.abs(c.jugador - PASO_M / 2) < 1e-9);
   for (let i = 1; i < AGARRE_TOQUES; i++) c = tap(c);
@@ -58,14 +58,14 @@ test('por defecto el largo es el del camino izquierdo', () => {
   assert.equal(LARGO_M, IZQ);
 });
 
-test('difícil (solo los rápidos): por la izquierda, a 5,3 toques/s te atrapa y a 6,2 escapas', () => {
-  assert.equal(simular(5.3, IZQ).estado, 'atrapado');
-  assert.equal(simular(6.2, IZQ).estado, 'escapado');
+test('muy difícil (hay que esforzarse): por la izquierda, a 6,4 toques/s te atrapa y a 7 escapas', () => {
+  assert.equal(simular(6.4, IZQ).estado, 'atrapado');
+  assert.equal(simular(7.0, IZQ).estado, 'escapado');
 });
 
-test('por la derecha, más larga, a 5,6 toques/s te atrapa y a 6,3 escapas', () => {
-  assert.equal(simular(5.6, DER).estado, 'atrapado');
-  assert.equal(simular(6.3, DER).estado, 'escapado');
+test('por la derecha, más larga, a 6,5 toques/s te atrapa y a 7,1 escapas', () => {
+  assert.equal(simular(6.5, DER).estado, 'atrapado');
+  assert.equal(simular(7.1, DER).estado, 'escapado');
 });
 
 test('un salto de tiempo enorme (pestaña en segundo plano) avanza como mucho DT_MAX_S', () => {

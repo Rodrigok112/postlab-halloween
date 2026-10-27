@@ -6,7 +6,7 @@
 export const ACECHO = {
   antesM: 2.5, // sale cuando te faltan estos metros para su esquina
   distanciaM: 38, // empieza a esta distancia de la esquina, donde está la luz roja
-  vel: 28, // m/s: llega en metro y medio de segundo; escapas por encima de unos 5,5 toques por segundo
+  vel: 36, // m/s: llega en algo más de un segundo; escapas por encima de unos 7 toques por segundo
   atrapaM: 0.8,
   giradoM: 0.3, // pasada la esquina por esto, ya has girado
 };
