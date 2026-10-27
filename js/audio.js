@@ -24,6 +24,18 @@ export function getContext() {
   return ctx;
 }
 
+// Para grabar los sonidos del vídeo: mientras tanto todo suena en otro contexto (un OfflineAudioContext).
+// Devuelve la función que deja el de antes.
+export function grabarEn(otro) {
+  const antes = [ctx, noise, screamBuffer];
+  ctx = otro;
+  screamBuffer = null;
+  noise = otro.createBuffer(1, Math.floor(otro.sampleRate * 0.5), otro.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  return () => { [ctx, noise, screamBuffer] = antes; };
+}
+
 // Golpe grave de puerta. strength de 0 a 1.
 export function thump(strength) {
   if (!ctx) return;

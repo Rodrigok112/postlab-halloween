@@ -144,7 +144,8 @@ void main() {
 }
 `;
 
-export function crearMotor(contenedor) {
+// ladoCorto: píxeles internos del lado corto (240 en el juego; el vídeo usa 360 × 3 = 1080).
+export function crearMotor(contenedor, { ladoCorto = LADO_CORTO } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(1);
   const lienzo = renderer.domElement;
@@ -153,7 +154,7 @@ export function crearMotor(contenedor) {
 
   // Render intermedio en coma flotante si se puede (las sombras no se apelotonan antes del tramado).
   const flotante = renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float');
-  const rt = new THREE.WebGLRenderTarget(LADO_CORTO, LADO_CORTO, {
+  const rt = new THREE.WebGLRenderTarget(ladoCorto, ladoCorto, {
     type: flotante ? THREE.HalfFloatType : THREE.UnsignedByteType,
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
@@ -182,7 +183,7 @@ export function crearMotor(contenedor) {
   const ajustar = () => {
     const vw = Math.max(1, contenedor.clientWidth || window.innerWidth);
     const vh = Math.max(1, contenedor.clientHeight || window.innerHeight);
-    const k = LADO_CORTO / Math.min(vw, vh);
+    const k = ladoCorto / Math.min(vw, vh);
     const w = Math.max(1, Math.round(vw * k));
     const h = Math.max(1, Math.round(vh * k));
     renderer.setSize(w, h, false);

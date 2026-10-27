@@ -1,0 +1,148 @@
+// Fotogramas y sonidos del vídeo (27/10): la habitación del juego vista desde la silla (plano subjetivo), con la
+// pantalla del CRT centrada en (540, 540) y de 360 px de alto, para que quepan el QR (328 px con margen) y la
+// bola de 152 px. Render interno de 360 × 360, ×3 = 1080 × 1080, sin suavizado.
+// Estados: A luz encendida y pantalla blanca; B luz apagada y pantalla blanca; C luz apagada y pantalla gris
+// azulado muy oscura; D como B con el resplandor rojo de la puerta del ente (por la derecha).
+// «Guardar todo» manda los PNG y los WAV al servidor local, que los deja en video/.
+
+import { THREE, crearMotor, luces } from './juego/ps1.js';
+import { crearHabitacion, POSES } from './juego/habitacion.js';
+import { cargarFotos } from './juego/texturas.js';
+import { createRng } from './glitch.js';
+import { grabarEn, thump, scream, screamQTV } from './audio.js';
+import { golpePuerta, portazo } from './juego/sonidos.js';
+
+const LADO = 1080;
+const INTERNO = 360;
+const PANTALLA_PX = 360; // alto de la pantalla en el cuadro final
+const L_PASILLO = 2;
+
+const ESTADOS = {
+  A: { luz: true, pantalla: [0xffffff, 0xe8f0ff, 1.2] },
+  B: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.9] },
+  C: { luz: false, pantalla: [0x1a2230, 0x2a3850, 0.25] },
+  D: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.9], rojo: true },
+};
+
+// Sonidos sueltos: [nombre, segundos, qué suena].
+const SONIDOS = [
+  ['golpe_puerta', 1.2, () => golpePuerta(1)],
+  ['golpe_puerta_suave', 1.2, () => golpePuerta(0.5)],
+  ['portazo', 1.5, () => portazo()],
+  ['golpe_seco', 1.2, () => thump(1)],
+  ['grito_tras_puerta', 2.2, () => scream(1, 'puerta')],
+  ['grito_medio', 2.2, () => scream(1, 'medio')],
+  ['grito_abierto', 2.2, () => scream(1, 'abierto')],
+  ['grito_quiero_tu_vida', 2.8, () => screamQTV(0.9)],
+];
+// Pista de 8 s alineada con la línea de tiempo del vídeo: golpes entre los segundos 2 y 5,5, cada vez más
+// fuertes, un grito tras la puerta y silencio en el estado C.
+const PISTA = [
+  [2.0, () => golpePuerta(0.6)], [2.7, () => golpePuerta(0.7)], [3.0, () => scream(0.8, 'puerta')],
+  [3.3, () => golpePuerta(0.8)], [3.8, () => golpePuerta(0.85)], [4.3, () => portazo()],
+  [4.7, () => golpePuerta(0.95)], [5.1, () => golpePuerta(1)], [5.4, () => portazo()],
+];
+
+const contenedor = document.getElementById('escena');
+const estadoTxt = document.getElementById('estado');
+await Promise.all([document.fonts.load('44px "Rubik Wet Paint"'), cargarFotos()]);
+const motor = crearMotor(contenedor, { ladoCorto: INTERNO });
+const { escena, camara } = motor;
+const hab = crearHabitacion(createRng(20261031));
+escena.add(hab.grupo);
+
+// Cámara sentada en la silla, con los ojos a la altura del centro de la pantalla y mirando recto (si mirara hacia
+// arriba, la pantalla saldría un pelo trapezoidal); el fov hace que la pantalla mida PANTALLA_PX.
+const centro = new THREE.Vector3();
+const caja = new THREE.Box3().setFromObject(hab.pantalla);
+caja.getCenter(centro);
+const altoPantalla = caja.max.y - caja.min.y;
+camara.position.set(POSES.sentado.pos[0], centro.y, POSES.sentado.pos[2]);
+camara.lookAt(centro);
+const d = camara.position.distanceTo(centro);
+camara.fov = (2 * Math.atan((altoPantalla * LADO / PANTALLA_PX) / 2 / d) * 180) / Math.PI;
+camara.updateProjectionMatrix();
+
+function poner(nombre) {
+  const e = ESTADOS[nombre];
+  hab.setLuz(e.luz);
+  hab.pantallaLisa(...e.pantalla);
+  hab.rendija(Boolean(e.rojo));
+  // El rojo entra por la derecha y desde abajo, como si viniera de la rendija de la puerta.
+  if (e.rojo) luces.punto(L_PASILLO, [0.95, 0.55, -0.75], 0xff1808, 4.0, 1.9);
+  else if (e.luz) luces.punto(L_PASILLO, [-4.3, 2.1, 0.35], 0xd8c070, 0.9, 3.2);
+  else luces.apagar(L_PASILLO);
+  motor.render();
+  estadoTxt.textContent = `estado ${nombre} · fov ${camara.fov.toFixed(1)}° · pantalla ${PANTALLA_PX} px de alto`;
+}
+
+// El lienzo interno (360) escalado ×3 sin suavizado.
+async function png() {
+  const grande = document.createElement('canvas');
+  grande.width = grande.height = LADO;
+  const g = grande.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.drawImage(motor.lienzo, 0, 0, LADO, LADO);
+  return new Promise((r) => grande.toBlob(r, 'image/png'));
+}
+
+async function guardar(nombre, blob) {
+  const r = await fetch(`/__salida/${nombre}`, { method: 'PUT', body: blob });
+  if (!r.ok) throw new Error(`${nombre}: ${r.status}`);
+}
+
+// WAV de 16 bits, mono.
+function wav(buffer) {
+  const datos = buffer.getChannelData(0);
+  const sr = buffer.sampleRate;
+  const out = new DataView(new ArrayBuffer(44 + datos.length * 2));
+  const txt = (o, s) => [...s].forEach((ch, i) => out.setUint8(o + i, ch.charCodeAt(0)));
+  txt(0, 'RIFF'); out.setUint32(4, 36 + datos.length * 2, true); txt(8, 'WAVE');
+  txt(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, sr, true); out.setUint32(28, sr * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  txt(36, 'data'); out.setUint32(40, datos.length * 2, true);
+  for (let i = 0; i < datos.length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, datos[i])) * 0x7fff, true);
+  return new Blob([out], { type: 'audio/wav' });
+}
+
+// Graba lo que suene en un contexto sin altavoces; momentos: [[segundo, fn], ...].
+async function grabar(segundos, momentos) {
+  const off = new OfflineAudioContext(1, Math.ceil(44100 * segundos), 44100);
+  const soltar = grabarEn(off);
+  try {
+    for (const [t, fn] of momentos) {
+      if (t === 0) fn();
+      else off.suspend(t).then(() => { fn(); off.resume(); });
+    }
+    return wav(await off.startRendering());
+  } finally {
+    soltar();
+  }
+}
+
+async function guardarTodo() {
+  for (const nombre of Object.keys(ESTADOS)) {
+    poner(nombre);
+    await guardar(`estado_${nombre}.png`, await png());
+  }
+  for (const [nombre, seg, fn] of SONIDOS) await guardar(`${nombre}.wav`, await grabar(seg, [[0, fn]]));
+  await guardar('pista_8s.wav', await grabar(8, PISTA));
+  estadoTxt.textContent = 'guardado en video/';
+}
+
+const panel = document.getElementById('panel');
+for (const nombre of Object.keys(ESTADOS)) {
+  const b = document.createElement('button');
+  b.textContent = nombre;
+  b.addEventListener('click', () => poner(nombre));
+  panel.append(b);
+}
+const bGuia = document.createElement('button');
+bGuia.textContent = 'guía QR/bola';
+bGuia.addEventListener('click', () => { document.getElementById('guia').classList.toggle('on'); bGuia.classList.toggle('on'); });
+const bTodo = document.createElement('button');
+bTodo.textContent = 'guardar todo';
+bTodo.addEventListener('click', () => guardarTodo().catch((e) => { estadoTxt.textContent = String(e); }));
+panel.append(bGuia, bTodo);
+poner('A');
+window.__video = { poner, guardarTodo, camara, hab, motor };

@@ -353,6 +353,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         [0, 0.25, 0.6, 1].forEach((u, i) => later(() => ente.parpadear(u), i * 140));
         ente.grupo.updateMatrixWorld(true);
         hab.luzOjos(posOjos());
+        hab.rendija(true); // y por debajo de la puerta sale luz roja
         thump(0.25);
         coro = crearCoro();
         coro.setCercania(0.05);
@@ -364,6 +365,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         asomado = false;
         ente.grupo.visible = false;
         hab.luzOjos(null);
+        hab.rendija(false);
         hab.estallar('derecha');
         portazo();
         astillazo();
