@@ -336,7 +336,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   const poseCinematica = (t) => {
     if (t < MOMENTOS.SALE) return POSES.reposo;
     if (t < MOMENTOS.SALE + MOMENTOS.SALIDA_S) return poseEntrada(Math.floor((t - MOMENTOS.SALE) * FPS_MONSTRUO), FOTOGRAMAS_SALIDA);
-    if (camino === 'final2' && t >= MOMENTOS.LANZA) return POSES.lanza;
+    if (camino === 'final2' && t >= MOMENTOS.LANZA) return POSES.reposo; // de frente: la colocan ojosLanza
     if (camino === 'pasillo' && t >= MOMENTOS.HUYE) return POSES.acecho;
     return POSES.enPie;
   };
@@ -365,6 +365,35 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     mano.grupo.position.set(MANO.dentro + (MANO.fuera - MANO.dentro) * u, MANO_Y, MANO_Z);
     mano.agarrar(0.35 + 0.35 * Math.sin(t * 7));
     if (t >= MANO.saleHasta) mano.grupo.visible = false;
+  };
+
+  // ---------- Final 2: se lanza a tu cara ----------
+  // En un tercio de segundo, sus ojos van de la puerta a 30 cm de los tuyos, a tu altura y de frente; boca abierta y
+  // las manos hacia ti. (Se coloca por los ojos, no por los pies: así no depende de cómo se incline.)
+  const LANZA_S = 0.35;
+  const sentado = new THREE.Vector3(...CAMARA.final2.at(-1).pos);
+  const haciaPuerta = PUERTA_HAB.clone().sub(sentado).setY(0).normalize();
+  const ojosLanza = (t, pos = sentado.toArray()) => {
+    const u = smooth((t - MOMENTOS.LANZA) / LANZA_S);
+    const d = 2.6 - (2.6 - 0.3) * u;
+    return new THREE.Vector3(pos[0], pos[1] + 0.04, pos[2]).addScaledVector(haciaPuerta, d);
+  };
+  const colocarLanza = (t) => {
+    const o = ojosLanza(t);
+    ente.grupo.visible = true;
+    ente.grupo.position.set(o.x, 0, o.z).addScaledVector(haciaPuerta, 1.5);
+    ente.grupo.rotation.y = Math.atan2(-haciaPuerta.x, -haciaPuerta.z);
+    ente.pose('reposo');
+    ente.andar(0);
+    ente.abrir(0);
+    ente.cabezaHacia(0);
+    ente.alcanzar(1);
+    ente.boca(1);
+    ojosAlOjo(2.4, o.y);
+    const medio = ente.ojos.reduce((m, ojo) => m.add(ojo.getWorldPosition(new THREE.Vector3())), new THREE.Vector3())
+      .divideScalar(ente.ojos.length);
+    ente.grupo.position.x += o.x - medio.x;
+    ente.grupo.position.z += o.z - medio.z;
   };
 
   // ---------- Cinemática de la habitación ----------
@@ -444,8 +473,11 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       hab.puertaIzquierda.rotation.y = 0.35 + 1.15 * smooth((ahora - abreEn) / 300);
     }
     if (cierraEn !== null) hab.puertaIzquierda.rotation.y = 1.5 * (1 - smooth((ahora - cierraEn) / 400));
-    if (ticEnte(t)) {
+    // En el salto del final 2, sin glitch de cabeza: que te mire recto.
+    const lanzando = camino === 'final2' && t >= MOMENTOS.LANZA;
+    if (ticEnte(t, lanzando ? 0 : undefined)) {
       posarEnte(ENTE[camino], paso12(t));
+      if (lanzando) colocarLanza(paso12(t));
       if (mano.grupo.visible) posarMano(paso12(t));
       // Mientras sale, la pared de la puerta se rompe a su alrededor.
       if (entraHasta !== null && t < entraHasta && rng() < 0.65) glitchHab.sacudir(PUERTA_HAB, 1.7, 0.2, rng);
@@ -461,6 +493,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const k = Math.min(1, (t - MOMENTOS.SALE) / 0.6) * 0.75;
       c.mira = c.mira.map((v, i) => v + (miraSuave.getComponent(i) - v) * k);
     } else miraSuave.set(...c.mira);
+    // En el salto, la cámara (sentada) mira a sus ojos, que vienen de la puerta a tu cara.
+    if (lanzando) c.mira = ojosLanza(t, c.pos).toArray();
     const fov = valorEn(ZOOM, t);
     if (camara.fov !== fov) { camara.fov = fov; camara.updateProjectionMatrix(); }
     camara.position.set(...c.pos);
