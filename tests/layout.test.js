@@ -31,6 +31,20 @@ test('fleePosition queda en pantalla en 320x568 con el dedo en el centro', () =>
   assert.ok(inside(p, vp, b));
 });
 
+test('fleePosition nunca deja el No encima del Sí (ni pegado a él)', () => {
+  const vp = { w: 375, h: 667 }, b = { w: 90, h: 44 };
+  const si = { x: 60, y: 420, w: 255, h: 64 };
+  const MARGEN = 12;
+  const pisa = (p) => p.x < si.x + si.w + MARGEN && p.x + b.w > si.x - MARGEN && p.y < si.y + si.h + MARGEN && p.y + b.h > si.y - MARGEN;
+  const rng = createRng(5);
+  for (let i = 0; i < 300; i++) {
+    const ptr = { x: rng() * vp.w, y: rng() * vp.h };
+    const p = fleePosition(vp, b, ptr, rng, si);
+    assert.ok(inside(p, vp, b), `fuera de pantalla: ${JSON.stringify(p)}`);
+    assert.ok(!pisa(p), `encima del Sí: ${JSON.stringify({ p, ptr })}`);
+  }
+});
+
 test('el No huye 3 veces, separadas, y luego se deja tocar', () => {
   const b = createFleeBudget(3, 300);
   assert.equal(b.tryFlee(0), true);

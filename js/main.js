@@ -8,7 +8,7 @@ import { unlockAudio, thump, scream, screamQTV, tapeStop } from './audio.js';
 import { startMusic, setMusicLevel, stopMusic } from './music.js';
 import {
   renderInicio, renderNombre, renderQuestion, renderCortada, renderDestello, renderEnte, renderRayado,
-  renderQuieroTuVida, renderBlack, renderBlanco, renderMuerte,
+  renderQuieroTuVida, renderBlack, renderBlanco, renderMuerte, renderCargando,
 } from './screens.js';
 
 const QTV_MS = 2500;
@@ -25,9 +25,12 @@ const PIXEL = [0, 0, 0, 2, 3, 4];
 
 const app = document.getElementById('app');
 
-// El juego (Three.js, ~700 KB) se carga en segundo plano mientras se responde la encuesta.
-// Si no llega a cargar, la encuesta termina en «HAS MUERTO» como siempre.
-const juegoListo = import('./juego/index.js').catch(() => null);
+// El juego (Three.js, ~700 KB) se carga en segundo plano mientras se responde la encuesta. Al terminar se espera a
+// que esté (en una conexión lenta puede no haber llegado) y, si falló, se reintenta una vez; si aun así no carga,
+// la encuesta termina en «HAS MUERTO», con el motivo en pequeño.
+let errorJuego = '';
+const cargarJuego = (url) => import(url).then(() => true).catch((e) => { errorJuego = String(e?.message || e); return false; });
+const juegoListo = cargarJuego('./juego/index.js');
 const apagon = document.getElementById('apagon');
 const rng = createRng(Date.now() >>> 0);
 const guard = createFlashGuard(3);
@@ -240,12 +243,17 @@ function finish(camino) {
   renderQuieroTuVida(app);
   later(() => {
     renderBlack(app);
-    later(() => {
+    later(async () => {
+      const cargando = setTimeout(() => renderCargando(app), 600);
+      const listo = (await juegoListo) || (await cargarJuego(`./juego/index.js?reintento=${Date.now()}`));
+      clearTimeout(cargando);
+      renderBlack(app);
       // El juego escucha este evento y llama a preventDefault() si se encarga del camino.
-      const alFallar = () => renderMuerte(app, start);
+      const alFallar = (motivo) => renderMuerte(app, start, motivo || errorJuego);
+      if (!listo) { alFallar(); return; }
       const ev = new CustomEvent('encuesta:fin', { detail: { camino, nombre: state.nombre, reiniciar: start, alFallar }, cancelable: true });
       const handled = !window.dispatchEvent(ev);
-      if (!handled) alFallar();
+      if (!handled) alFallar('tu navegador no puede con WebGL');
     }, BLACK_MS);
   }, QTV_MS);
 }

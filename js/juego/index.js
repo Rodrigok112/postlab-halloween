@@ -1300,6 +1300,6 @@ window.addEventListener('encuesta:fin', (ev) => {
   iniciarJuego(ev.detail).catch((e) => {
     console.error(e);
     document.querySelector('.juego')?.remove();
-    ev.detail.alFallar?.();
+    ev.detail.alFallar?.(String(e?.message || e));
   });
 });

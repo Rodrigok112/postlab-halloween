@@ -212,6 +212,9 @@ body.nivel-5 .si-media { border-radius: 0; }
 /* Antes de la final: la tarjeta de la pregunta, vacía y en blanco (no toda la pantalla, para que no parezca que
    la web se ha colgado). */
 .tarjeta.vacia { min-height: 260px; background: #fff; }
+/* Bajo «HAS MUERTO», si el juego no arrancó: el motivo, en pequeño. */
+.negro .motivo { margin: 18px 16px 0; max-width: 32em; font-size: 11px; color: #6b6248; text-align: center; overflow-wrap: anywhere; }
+.negro .cargando { font-size: 18px; color: #6b6248; }
 .negro {
   position: fixed; inset: 0; z-index: 40;
   background: #000;

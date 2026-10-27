@@ -205,11 +205,13 @@ export function renderQuestion(root, s, onAnswer, rng) {
       const r = no.getBoundingClientRect();
       const d = Math.hypot(r.left + r.width / 2 - ev.clientX, r.top + r.height / 2 - ev.clientY);
       if (d >= FLEE_RADIUS || !budget.tryFlee(performance.now())) return;
+      const rs = si.getBoundingClientRect();
       place(fleePosition(
         { w: window.innerWidth, h: window.innerHeight },
         { w: r.width, h: r.height },
         { x: ev.clientX, y: ev.clientY },
         rng,
+        { x: rs.left, y: rs.top, w: rs.width, h: rs.height },
       ));
     };
     document.addEventListener('pointermove', flee);
@@ -401,10 +403,17 @@ export function renderQuieroTuVida(root) {
   negro.append(canvas);
 }
 
-export function renderMuerte(root, onAgain) {
+// motivo: por qué no arrancó el juego (si es eso), en pequeño, para poder contarlo.
+export function renderMuerte(root, onAgain, motivo = '') {
   const negro = pantallaNegra(root);
   const boton = el('button', 'otra-vez', MUERTE.boton);
   boton.type = 'button';
   boton.addEventListener('click', onAgain);
   negro.append(el('h1', 'muerte', MUERTE.title), boton);
+  if (motivo) negro.append(el('p', 'motivo', motivo));
+}
+
+// Mientras termina de llegar el juego.
+export function renderCargando(root) {
+  pantallaNegra(root).append(el('p', 'cargando', 'cargando…'));
 }
