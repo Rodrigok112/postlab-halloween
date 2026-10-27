@@ -136,7 +136,9 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   fondo.volumen(1);
   // Música de la persecución (crescendo de terror; su tramo final se repite mientras corres) y el «lo conseguiste»
   // del jardín. Se sintetizan en segundo plano al empezar: cuando llegas a correr ya están.
-  const pistas = Promise.all([sonidoTerror(), sonidoJardin()]).catch(() => null);
+  // Si una falla (navegador sin OfflineAudioContext…), la otra sigue; el juego va igual, sin esa música.
+  const sinFallar = (pr) => pr.catch((e) => { console.error(e); return null; });
+  const pistas = Promise.all([sinFallar(sonidoTerror()), sinFallar(sonidoJardin())]);
   const buffers = new Map();
   let musica = null;
   const tocar = (datos, { bucle = null, volumen = 0.6 } = {}) => {
@@ -619,7 +621,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     // La música empieza con la carrera (y de nuevo desde el principio si repites).
     let corriendo = true;
     pararMusica();
-    pistas.then((p) => { if (p && corriendo && !apagado && !musica) musica = tocar(p[0], { bucle: TERROR_BUCLE, volumen: 0.55 }); });
+    pistas.then((p) => { if (p && corriendo && !apagado && !musica) musica = tocar(p[0], { bucle: TERROR_BUCLE, volumen: 0.9 }); });
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
     capa.append(ojos);

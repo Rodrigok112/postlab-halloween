@@ -635,23 +635,61 @@ function deriva(rnd, n) {
   return v;
 }
 
-function terror(ctx, salida) {
+// Saturación suave: da armónicos a lo grave, para que se oiga en el altavoz de un móvil (que no baja de ~200 Hz).
+function saturador(ctx, fuerza = 3) {
+  const w = ctx.createWaveShaper();
+  const c = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) c[i] = Math.tanh(((i / 1023) * 2 - 1) * fuerza);
+  w.curve = c;
+  return w;
+}
+
+// Golpe con cuerpo en los medios (el «bum» solo es grave y en el móvil no se oye).
+function golpeMedio(ctx, bus, t, v) {
+  const o = tono(ctx, 'triangle', 180);
+  const g = ganancia(ctx, 0);
+  o.connect(saturador(ctx, 2)).connect(g).connect(bus);
+  o.frequency.setValueAtTime(190, t);
+  o.frequency.exponentialRampToValueAtTime(85, t + 0.18);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.5 * v, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  o.start(t);
+  o.stop(t + 0.35);
+  const n = ruido(ctx, 0.08);
+  const gn = ganancia(ctx, 0);
+  n.connect(filtro(ctx, 'bandpass', 1200, 1.2)).connect(gn).connect(bus);
+  gn.gain.setValueAtTime(0.45 * v, t);
+  gn.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  n.start(t);
+}
+
+function terror(ctx, final) {
   const T = TERROR_S;
   const rnd = createRng(66613);
+  const hp = filtro(ctx, 'highpass', 90, 0.7);
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -22;
+  comp.ratio.value = 6;
+  comp.attack.value = 0.005;
+  comp.release.value = 0.2;
+  const salida = ganancia(ctx, 1);
+  salida.connect(hp).connect(comp).connect(final);
   const sala = reverb(ctx, 2.4);
   const mojado = ganancia(ctx, 0.35);
   sala.connect(mojado).connect(salida);
   const bus = ganancia(ctx, 1);
   bus.connect(salida);
   bus.connect(sala);
-  // Cuánto ha crecido a los t segundos (0 → 1, llega al máximo a los 36 s).
-  const k = (t) => Math.min(1, t / 36);
+  // Cuánto ha crecido a los t segundos: empieza ya en un 35 % (que se oiga desde el principio) y llega al máximo
+  // a los 36 s.
+  const k = (t) => 0.35 + 0.65 * Math.min(1, t / 36);
 
   // 1. Retumbar grave que late.
   const gr = ganancia(ctx, 0);
-  gr.connect(bus);
-  gr.gain.setValueAtTime(0.12, 0);
-  gr.gain.linearRampToValueAtTime(0.32, 36);
+  gr.connect(saturador(ctx, 4)).connect(filtro(ctx, 'lowpass', 700)).connect(bus);
+  gr.gain.setValueAtTime(0.16, 0);
+  gr.gain.linearRampToValueAtTime(0.3, 36);
   for (const f of [31, 34]) {
     const o = tono(ctx, 'sine', f);
     o.connect(gr);
@@ -664,18 +702,18 @@ function terror(ctx, salida) {
   rum.start(0);
 
   // 2. Racimo disonante que se desafina solo.
-  const lp = filtro(ctx, 'lowpass', 300, 1.5);
+  const lp = filtro(ctx, 'lowpass', 700, 1.5);
   const gd = ganancia(ctx, 0);
-  lp.connect(gd).connect(bus);
-  lp.frequency.setValueAtTime(300, 4);
-  lp.frequency.exponentialRampToValueAtTime(2200, 36);
-  gd.gain.setValueAtTime(0.0001, 4);
-  gd.gain.exponentialRampToValueAtTime(0.2, 36);
-  for (const m of [36, 37, 42, 48, 49]) {
+  lp.connect(saturador(ctx, 2)).connect(gd).connect(bus);
+  lp.frequency.setValueAtTime(700, 0);
+  lp.frequency.exponentialRampToValueAtTime(3200, 36);
+  gd.gain.setValueAtTime(0.1, 0);
+  gd.gain.exponentialRampToValueAtTime(0.26, 36);
+  for (const m of [36, 37, 42, 48, 49, 54, 60, 61, 66]) {
     const o = tono(ctx, 'sawtooth', hz(m));
-    o.detune.setValueCurveAtTime(deriva(rnd, 64).map((v) => v * 45), 4, T - 4);
+    o.detune.setValueCurveAtTime(deriva(rnd, 64).map((v) => v * 45), 0, T);
     o.connect(lp);
-    o.start(4);
+    o.start(0);
     o.stop(T);
   }
 
@@ -746,7 +784,12 @@ function terror(ctx, salida) {
   for (let t = 1.2; t < T - 0.3;) {
     const v = 0.45 + 0.55 * k(t);
     golpe(ctx, bus, t, rnd() < 0.2 ? 47 : 48, v);
-    if (rnd() < 0.3) golpe(ctx, bus, t + 0.16 + rnd() * 0.1, 48, v * 0.7);
+    golpeMedio(ctx, bus, t, v);
+    if (rnd() < 0.3) {
+      const t2 = t + 0.16 + rnd() * 0.1;
+      golpe(ctx, bus, t2, 48, v * 0.7);
+      golpeMedio(ctx, bus, t2, v * 0.7);
+    }
     t += (3.2 - 2.4 * k(t)) * (0.6 + rnd() * 0.8);
   }
 
