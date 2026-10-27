@@ -13,6 +13,7 @@
 }
 
 :root {
+  color-scheme: only light; /* el modo oscuro automático de Chrome no la recolorea */
   --fondo: #f6efe4;
   --tarjeta: #ffffff;
   --tinta: #4a3f52;
