@@ -95,6 +95,8 @@ function soportaWebGL() {
 }
 
 const smooth = (u) => { const k = Math.max(0, Math.min(1, u)); return k * k * (3 - 2 * k); };
+// Ganchos para depurar desde la consola: solo en este ordenador y entrando por un atajo de prueba (#juego-…).
+const DEPURAR = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) && window.location.hash.startsWith('#juego-');
 
 export async function iniciarJuego({ camino, reiniciar, nombre }) {
   const rng = createRng(Date.now() >>> 0);
@@ -682,7 +684,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     let proximoBrazo = rec.brazos ? rec.brazos[0] + 2 : Infinity;
     const brazos = []; // { b, d, nace, estado: 'sale' | 'agarra' | 'vuelve', desde }
     // Para depurar desde la consola cuando se entra por un atajo de prueba.
-    if (window.location.hash.startsWith('#juego-')) window.__carrera = () => ({ c, brazos: brazos.map((a) => [a.d, a.estado]), proximoBrazo, toques: toquesRecientes.length });
+    if (DEPURAR) window.__carrera = () => ({ c, brazos: brazos.map((a) => [a.d, a.estado]), proximoBrazo, toques: toquesRecientes.length });
     const colocarBrazo = (b, d, lado) => {
       const p = rec.poseEn(d);
       const dir = [-Math.sin(p.rumbo), -Math.cos(p.rumbo)];
@@ -1227,7 +1229,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   }
 
   // Para depurar desde la consola cuando se entra por un atajo de prueba.
-  if (window.location.hash.startsWith('#juego-')) window.__juego = { THREE, motor, ente, masa, mano, camara, escena, hab, pasillos, muerteMasa, escenaMuerte, PLATO, createRng };
+  if (DEPURAR) window.__juego = { THREE, motor, ente, masa, mano, camara, escena, hab, pasillos, muerteMasa, escenaMuerte, PLATO, createRng };
 
   // Final del psicólogo: negro; estás sentado en el sofá de una consulta; giras la cabeza y el ente está en el
   // sillón de al lado, con sombrero y cigarrillo: «{nombre}, hablemos un poco de tu vida». Luego, a negro:
