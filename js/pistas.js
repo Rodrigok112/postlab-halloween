@@ -1,4 +1,4 @@
-// Sonidos de ambiente para el vídeo (27/10): un ordenador viejo que se enciende y el zumbido del ordenador ya
+// Sonidos sintetizados para el vídeo y el juego (27–28/10): un ordenador viejo que se enciende y el zumbido del ordenador ya
 // encendido, en bucle. Se sintetizan sin altavoces (OfflineAudioContext) y luego se «pasan por una PS1»: la mitad
 // de frecuencia de muestreo (22 kHz, se nota en los agudos) y 10 bits, con algo de ruido de fondo.
 
@@ -782,4 +782,83 @@ function terror(ctx, salida) {
 
 export async function sonidoTerror() {
   return normalizar(ps1(await render(TERROR_S, terror)), 0.85);
+}
+
+// ---------- «Lo conseguiste» (28/10): suena al llegar al jardín ----------
+// Una cajita de música en Do mayor (después de tanto Do menor) que sube en arpegio y se abre en un acorde suave,
+// con pájaros y unas campanillas por encima. 7 s, con el mismo filtro de PS1.
+export const JARDIN_S = 7;
+
+// Nota de cajita de música: seno con su tercer armónico, ataque seco y caída larga.
+function campana(ctx, bus, t, m, v, dur = 2.2) {
+  for (const [mult, amp] of [[1, 1], [3, 0.18], [4.2, 0.06]]) {
+    const o = tono(ctx, 'sine', hz(m) * mult);
+    const g = ganancia(ctx, 0);
+    o.connect(g).connect(bus);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v * amp, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur / mult);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+}
+
+function jardin(ctx, salida) {
+  const rnd = createRng(777);
+  const sala = reverb(ctx, 2.8);
+  const mojado = ganancia(ctx, 0.45);
+  sala.connect(mojado).connect(salida);
+  const bus = ganancia(ctx, 1);
+  bus.connect(salida);
+  bus.connect(sala);
+
+  // Arpegio que sube (Do–Mi–Sol–Do–Mi) y una nota larga arriba.
+  [[0.15, 72], [0.33, 76], [0.51, 79], [0.69, 84], [0.87, 88]].forEach(([t, m], i) => campana(ctx, bus, t, m, 0.32 + i * 0.03));
+  campana(ctx, bus, 1.25, 91, 0.3, 3.5);
+  // Y otra vez, más suave y abriéndose (Fa–La–Do → Do mayor).
+  [[2.1, 77], [2.25, 81], [2.4, 84], [2.9, 76], [3.05, 79], [3.2, 84]].forEach(([t, m]) => campana(ctx, bus, t, m, 0.2));
+
+  // Acorde de fondo que se abre despacio (Do mayor con la novena).
+  const gp = ganancia(ctx, 0);
+  gp.connect(filtro(ctx, 'lowpass', 2400)).connect(bus);
+  gp.gain.setValueAtTime(0.0001, 0.1);
+  gp.gain.exponentialRampToValueAtTime(0.12, 1.6);
+  gp.gain.setValueAtTime(0.12, 4.5);
+  gp.gain.exponentialRampToValueAtTime(0.0001, JARDIN_S - 0.1);
+  for (const [m, det] of [[48, 0], [55, 4], [60, -3], [64, 5], [74, -6]]) {
+    const o = tono(ctx, 'triangle', hz(m));
+    o.detune.value = det;
+    o.connect(gp);
+    o.start(0.1);
+    o.stop(JARDIN_S);
+  }
+
+  // Pájaros: gorjeos cortos que suben y bajan.
+  for (let t = 1.0 + rnd(); t < JARDIN_S - 0.6; t += 0.5 + rnd() * 1.1) {
+    const notas = 2 + Math.floor(rnd() * 3);
+    for (let n = 0; n < notas; n++) {
+      const t0 = t + n * 0.09;
+      const o = tono(ctx, 'sine', 3000);
+      const g = ganancia(ctx, 0);
+      o.connect(g).connect(bus);
+      const f0 = 2600 + rnd() * 1800;
+      o.frequency.setValueAtTime(f0, t0);
+      o.frequency.exponentialRampToValueAtTime(f0 * (rnd() < 0.5 ? 1.35 : 0.75), t0 + 0.07);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+      o.start(t0);
+      o.stop(t0 + 0.1);
+    }
+  }
+
+  // Campanillas de viento (pentatónica alta).
+  const penta = [84, 86, 88, 91, 93, 96];
+  for (let t = 2.6; t < JARDIN_S - 1; t += 0.35 + rnd() * 0.7) {
+    campana(ctx, bus, t, penta[Math.floor(rnd() * penta.length)], 0.06, 1.6);
+  }
+}
+
+export async function sonidoJardin() {
+  return normalizar(ps1(await render(JARDIN_S, jardin)), 0.8);
 }

@@ -12,7 +12,7 @@ import { cargarFotos } from './juego/texturas.js';
 import { createRng } from './glitch.js';
 import { grabarEn, thump, scream, screamQTV } from './audio.js';
 import { golpePuerta, portazo } from './juego/sonidos.js';
-import { sonidoEncendido, sonidoAmbiente, sonidoMusica, pistas8, sonidoPersecucion, sonidoTerror } from './video-sonidos.js';
+import { sonidoEncendido, sonidoAmbiente, sonidoMusica, pistas8, sonidoPersecucion, sonidoTerror, sonidoJardin } from './pistas.js';
 
 const LADO = 1080;
 const INTERNO = 360;
@@ -260,6 +260,7 @@ async function guardarPersecucion() {
   const comoBuffer = (datos) => ({ getChannelData: () => datos, sampleRate: 44100 });
   await guardar('musica_persecucion_bucle.wav', wav(comoBuffer(await sonidoPersecucion())));
   await guardar('musica_persecucion_terror.wav', wav(comoBuffer(await sonidoTerror())));
+  await guardar('jardin_lo_conseguiste.wav', wav(comoBuffer(await sonidoJardin())));
   estadoTxt.textContent = 'música de la persecución guardada en video/';
 }
 

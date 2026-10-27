@@ -18,7 +18,8 @@ import {
   portazo, paso, crearCoro, astillazo, voz, crearArrastre, crearFondo, crearZumbido, pasoMetal, chirrido,
   golpePuerta, encontrado,
 } from './sonidos.js';
-import { thump, scream, screamQTV } from '../audio.js';
+import { thump, scream, screamQTV, getContext } from '../audio.js';
+import { sonidoTerror, sonidoJardin, TERROR_BUCLE } from '../pistas.js';
 import { createRng, createFlashGuard } from '../glitch.js';
 import { ahiEstas, PSICOLOGO } from '../texts.js';
 import { crearConsulta, vestir, SOFA, SILLON, CENTRO as CENTRO_CONSULTA } from './consulta.js';
@@ -133,6 +134,34 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   let zumbido = null;
   const fondo = crearFondo();
   fondo.volumen(1);
+  // Música de la persecución (crescendo de terror; su tramo final se repite mientras corres) y el «lo conseguiste»
+  // del jardín. Se sintetizan en segundo plano al empezar: cuando llegas a correr ya están.
+  const pistas = Promise.all([sonidoTerror(), sonidoJardin()]).catch(() => null);
+  const buffers = new Map();
+  let musica = null;
+  const tocar = (datos, { bucle = null, volumen = 0.6 } = {}) => {
+    const ctx = getContext();
+    if (!ctx || !datos) return null;
+    if (!buffers.has(datos)) {
+      const b = ctx.createBuffer(1, datos.length, 44100);
+      b.copyToChannel(datos, 0);
+      buffers.set(datos, b);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffers.get(datos);
+    if (bucle) { src.loop = true; [src.loopStart, src.loopEnd] = bucle; }
+    const g = ctx.createGain();
+    g.gain.value = volumen;
+    src.connect(g).connect(ctx.destination);
+    src.start();
+    return {
+      parar() {
+        g.gain.setTargetAtTime(0, ctx.currentTime, 0.12);
+        setTimeout(() => { try { src.stop(); } catch { /* ya parado */ } g.disconnect(); }, 700);
+      },
+    };
+  };
+  const pararMusica = () => { musica?.parar(); musica = null; };
 
   // Negro total: se oculta el lienzo (más fiable que esconder la escena).
   const negro = (si) => { motor.lienzo.style.visibility = si ? 'hidden' : 'visible'; };
@@ -150,6 +179,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
   };
 
   const pararSonidos = () => {
+    pararMusica();
     coro?.parar(); coro = null;
     arrastre?.parar(); arrastre = null;
     zumbido?.parar(); zumbido = null;
@@ -586,6 +616,10 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
     const barra = crearBarra(tactil);
     barra.mostrar(capa);
     let masaVista = false;
+    // La música empieza con la carrera (y de nuevo desde el principio si repites).
+    let corriendo = true;
+    pararMusica();
+    pistas.then((p) => { if (p && corriendo && !apagado && !musica) musica = tocar(p[0], { bucle: TERROR_BUCLE, volumen: 0.55 }); });
     const ojos = el('div', 'juego-ojos');
     ojos.append(el('span', 'ojo-rojo'), el('span', 'ojo-rojo'));
     capa.append(ojos);
@@ -982,6 +1016,8 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       if (ahora - ultimoParpadeo > 700 && rng() < 0.05) { pasillos.parpadeo(rng); ultimoParpadeo = ahora; }
       motor.render();
       const limpiar = () => {
+        corriendo = false;
+        pararMusica();
         quitarToques();
         luzRoja.visible = false;
         barra.quitar();
@@ -1170,6 +1206,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
       const jardin = crearJardin(rng);
       escena.add(jardin.grupo);
       jardin.encender(escena);
+      pistas.then((p) => { if (p && !apagado) tocar(p[1], { volumen: 0.8 }); });
       ente.grupo.visible = false;
       masa.grupo.visible = false;
       motor.glitch(0);
