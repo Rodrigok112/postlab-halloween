@@ -7,7 +7,7 @@ import { VEL_ENTE, PASO_M } from './carrera.js';
 
 const FPS = 12;
 // Toques por segundo que llenan la barrita, y cuántos segmentos tiene.
-export const RITMO_MAX = 10;
+export const RITMO_MAX = 12;
 export const SEGMENTOS = 12;
 
 // La manita, con el índice hacia arriba. X = borde, W = piel.
@@ -25,8 +25,11 @@ const MANITA = [
 export function nivelRitmo(toquesPorSegundo) {
   return Math.min(1, Math.max(0, toquesPorSegundo / RITMO_MAX));
 }
-// Lo rápido que va el ente, en la escala de la barrita.
-export const UMBRAL = nivelRitmo(VEL_ENTE / PASO_M);
+// Lo rápido que va el ente (m/s), en la escala de la barrita. UMBRAL: cuando sale.
+export function umbralDe(velMs) {
+  return nivelRitmo(velMs / PASO_M);
+}
+export const UMBRAL = umbralDe(VEL_ENTE);
 
 export function llenos(nivel) {
   return Math.round(nivel * SEGMENTOS);
@@ -132,7 +135,9 @@ export function crearBarra(tactil) {
     },
     // toques: en el último segundo. agarre: toques que faltan para soltarte (0 si no te agarran).
     // oculta: durante las cutscenes de la carrera, que no piden pulsar. guia: si se ve el tutorial.
-    actualizar({ toques, empezado, avisar, agarre, total, oculta, guia }) {
+    // umbral: dónde va la raya (lo rápido que va el ente ahora, que acelera).
+    actualizar({ toques, empezado, avisar, agarre, total, oculta, guia, umbral = UMBRAL }) {
+      raya.style.bottom = `${umbral * 100}%`;
       caja.style.visibility = oculta ? 'hidden' : '';
       const verTutorial = Boolean(guia && !oculta && padre);
       if (verTutorial !== conTutorial) {
@@ -155,7 +160,7 @@ export function crearBarra(tactil) {
         encendidos = n;
         trozos.forEach((s, i) => s.classList.toggle('lleno', i < n));
       }
-      const t = conTutorial ? '' : !empezado ? (tactil ? 'TOCA' : 'PULSA') : !agarrado && avisar && nivel < UMBRAL ? '¡MÁS!' : '';
+      const t = conTutorial ? '' : !empezado ? (tactil ? 'TOCA' : 'PULSA') : !agarrado && avisar && nivel < umbral ? '¡MÁS!' : '';
       if (texto.textContent !== t) {
         texto.textContent = t;
         texto.classList.toggle('mas', t === '¡MÁS!');

@@ -19,17 +19,17 @@ function simular(vel) {
 test('la masa espera al fondo (una luz roja) hasta que te faltan 2,5 m para la esquina; entonces corre a toda prisa', () => {
   assert.ok(ACECHO.distanciaM >= 35);
   assert.equal(ACECHO.antesM, 2.5);
-  assert.ok(ACECHO.vel >= 34, 'más rápida que antes: se nota el desafío');
+  assert.ok(ACECHO.vel >= 50, 'a toda prisa: solo se esquiva yendo casi al máximo');
   assert.equal(actualizarAcecho(crearAcecho(ESQUINA), ESQUINA - 2.6, 0.016).estado, 'espera');
   assert.equal(actualizarAcecho(crearAcecho(ESQUINA), ESQUINA - 2.5, 0.016).estado, 'corre');
 });
 
-test('muy difícil: a 7,3 toques/s giras antes de que llegue y se esfuma en la esquina', () => {
-  assert.equal(simular(7.3 * 0.38).estado, 'fuera');
+test('extremadamente difícil: a 10,8 toques/s giras antes de que llegue y se esfuma en la esquina', () => {
+  assert.equal(simular(10.8 * 0.38).estado, 'fuera');
 });
 
-test('a 6,6 toques/s te atrapa', () => {
-  assert.equal(simular(6.6 * 0.38).estado, 'atrapa');
+test('a 10 toques/s te atrapa', () => {
+  assert.equal(simular(10 * 0.38).estado, 'atrapa');
 });
 
 test('en una esquina lejana (camino derecho) no sale hasta que te acercas a ella', () => {

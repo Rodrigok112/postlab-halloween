@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createCarrera, tap, update, soltar, agarrar, distancia, PASO_M, LARGO_M, PUERTA_M, DT_MAX_S, AGARRE_TOQUES,
+  createCarrera, tap, update, soltar, agarrar, distancia, velEnte, PASO_M, LARGO_M, PUERTA_M, DT_MAX_S, AGARRE_TOQUES,
+  VEL_ENTE, VEL_ENTE_FINAL,
 } from '../js/juego/carrera.js';
 import { crearRecorrido, RUTAS } from '../js/juego/recorrido.js';
 
@@ -41,10 +42,10 @@ test('cada toque avanza un paso y cuenta una vez', () => {
   assert.ok(Math.abs(c.jugador - 2 * PASO_M) < 1e-9);
 });
 
-test('si un brazo te agarra, cada toque avanza la mitad hasta que te sueltas con 14 toques', () => {
+test('si un brazo te agarra, cada toque avanza la mitad hasta que te sueltas con 22 toques', () => {
   let c = agarrar(createCarrera(IZQ));
   assert.equal(c.agarre, AGARRE_TOQUES);
-  assert.equal(AGARRE_TOQUES, 14);
+  assert.equal(AGARRE_TOQUES, 22);
   c = tap(c);
   assert.ok(Math.abs(c.jugador - PASO_M / 2) < 1e-9);
   for (let i = 1; i < AGARRE_TOQUES; i++) c = tap(c);
@@ -58,14 +59,30 @@ test('por defecto el largo es el del camino izquierdo', () => {
   assert.equal(LARGO_M, IZQ);
 });
 
-test('muy difícil (hay que esforzarse): por la izquierda, a 6,4 toques/s te atrapa y a 7 escapas', () => {
-  assert.equal(simular(6.4, IZQ).estado, 'atrapado');
-  assert.equal(simular(7.0, IZQ).estado, 'escapado');
+test('el ente acelera según avanzas: de 3,6 m/s al salir a 4,4 m/s al final del recorrido', () => {
+  const c = soltar(createCarrera(IZQ), 0);
+  assert.equal(velEnte({ ...c, jugador: 0 }), VEL_ENTE);
+  assert.equal(velEnte({ ...c, jugador: IZQ }), VEL_ENTE_FINAL);
+  assert.ok(velEnte({ ...c, jugador: IZQ / 2 }) > VEL_ENTE && velEnte({ ...c, jugador: IZQ / 2 }) < VEL_ENTE_FINAL);
+  assert.equal(VEL_ENTE, 3.6);
+  assert.equal(VEL_ENTE_FINAL, 4.4);
 });
 
-test('por la derecha, más larga, a 6,5 toques/s te atrapa y a 7,1 escapas', () => {
-  assert.equal(simular(6.5, DER).estado, 'atrapado');
-  assert.equal(simular(7.1, DER).estado, 'escapado');
+test('extremadamente difícil, con dos pulgares: por la izquierda, a 9,6 toques/s te atrapa y a 10,3 escapas', () => {
+  assert.equal(simular(9.6, IZQ).estado, 'atrapado');
+  assert.equal(simular(10.3, IZQ).estado, 'escapado');
+  assert.equal(simular(7, IZQ).estado, 'atrapado', 'con una mano no se puede');
+});
+
+test('por la derecha, más larga, a 9,7 toques/s te atrapa y a 10,4 escapas', () => {
+  assert.equal(simular(9.7, DER).estado, 'atrapado');
+  assert.equal(simular(10.4, DER).estado, 'escapado');
+});
+
+test('si no vas casi al máximo, te pilla al final del recorrido', () => {
+  const c = simular(9.6, IZQ);
+  assert.equal(c.estado, 'atrapado');
+  assert.ok(c.jugador > IZQ * 0.6, `te pilla a los ${c.jugador.toFixed(1)} m de ${IZQ}`);
 });
 
 test('un salto de tiempo enorme (pestaña en segundo plano) avanza como mucho DT_MAX_S', () => {

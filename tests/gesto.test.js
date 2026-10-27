@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aLocal, nivelRitmo, UMBRAL, SEGMENTOS, llenos, RITMO_MAX } from '../js/juego/gesto.js';
-import { VEL_ENTE, PASO_M } from '../js/juego/carrera.js';
+import { aLocal, nivelRitmo, UMBRAL, SEGMENTOS, llenos, RITMO_MAX, umbralDe } from '../js/juego/gesto.js';
+import { VEL_ENTE, VEL_ENTE_FINAL, PASO_M } from '../js/juego/carrera.js';
 
 test('sin girar, el toque cae donde tocas', () => {
   assert.deepEqual(aLocal(120, 300, false, 812), { x: 120, y: 300 });
@@ -26,6 +26,11 @@ test('la barrita sube con los toques por segundo y se llena a RITMO_MAX', () => 
 test('la raya de la barrita marca lo rápido que va el ente', () => {
   assert.ok(Math.abs(UMBRAL - nivelRitmo(VEL_ENTE / PASO_M)) < 1e-9);
   assert.ok(UMBRAL > 0.5 && UMBRAL < 0.85, 'hay margen por encima');
+});
+
+test('la raya sube a medida que el ente acelera, y al final casi llega arriba', () => {
+  assert.ok(umbralDe(VEL_ENTE_FINAL) > umbralDe(VEL_ENTE));
+  assert.ok(umbralDe(VEL_ENTE_FINAL) > 0.9 && umbralDe(VEL_ENTE_FINAL) < 1);
 });
 
 test('segmentos encendidos de la barrita', () => {

@@ -12,7 +12,7 @@ import { crearPasillos, PLATO } from './pasillo.js';
 import { CAMARA, ENTE, ACCIONES, DURACION, MANO, ZOOM, ENTRADA_GLITCH_S, MOMENTOS } from './escenas.js';
 import { muestrear, valorEn } from './linea.js';
 import { CRUCE } from './recorrido.js';
-import { createCarrera, tap, update, soltar, agarrar, distancia, PUERTA_M, AGARRE_TOQUES } from './carrera.js';
+import { createCarrera, tap, update, soltar, agarrar, distancia, velEnte, PUERTA_M, AGARRE_TOQUES } from './carrera.js';
 import { crearAcecho, actualizarAcecho, ACECHO } from './acecho.js';
 import {
   portazo, paso, crearCoro, astillazo, voz, crearArrastre, crearFondo, crearZumbido, pasoMetal, chirrido,
@@ -25,7 +25,7 @@ import { ahiEstas, PSICOLOGO } from '../texts.js';
 import { crearConsulta, vestir, SOFA, SILLON, CENTRO as CENTRO_CONSULTA } from './consulta.js';
 import { cargarFotos, sombraEnte, halo } from './texturas.js';
 import { crearJardin, CENTRO as CENTRO_JARDIN } from './jardin.js';
-import { crearBarra, onda, aLocal } from './gesto.js';
+import { crearBarra, onda, aLocal, umbralDe } from './gesto.js';
 
 const OJO_Y = 1.6;
 const BALANCEO_M = 0.04;
@@ -51,7 +51,7 @@ const REVIENTA_S = 3.8;
 const BRAZO_CADA_M = [1.8, 3.2];
 const BRAZO_PAR = 0.35; // probabilidad de que salgan dos (uno en cada pared)
 const BRAZO_SE_TIRA_M = 1.6;
-const RITMO_LIBRE = 6;
+const RITMO_LIBRE = 9;
 // Sombra del ente en la pared: aparece cuando está a menos de esto (m).
 const SOMBRA_M = 4.5;
 // Por la izquierda (24/10): tras la esquina de la masa salen todos los brazos a la vez (uno cada OLEADA_CADA_M,
@@ -976,7 +976,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
         else if (!masaVista && c.jugador >= rec.segmentos[rec.tramoRecto].desde + 1.2) presentarMasa(ahora);
       }
       while (toquesRecientes.length && ahora - toquesRecientes[0] > 1000) toquesRecientes.shift();
-      barra.actualizar({ toques: toquesRecientes.length, empezado, avisar: c.suelto, agarre: c.agarre, total: AGARRE_TOQUES, oculta: pausa, guia: !c.suelto });
+      barra.actualizar({ toques: toquesRecientes.length, empezado, avisar: c.suelto, agarre: c.agarre, total: AGARRE_TOQUES, oculta: pausa, guia: !c.suelto, umbral: umbralDe(velEnte(c)) });
       balanceo = Math.max(0, balanceo - dt * 6);
       const p = rec.poseEn(c.jugador);
       if (pausa) escenaPausa(ahora);

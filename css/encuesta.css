@@ -329,7 +329,7 @@ body.nivel-5 .si-media { border-radius: 0; }
 .juego {
   position: fixed; inset: 0; z-index: 60;
   background: #000;
-  touch-action: manipulation;
+  touch-action: none; /* con dos pulgares a la vez, que no lo tome por un pellizco de zoom */
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
