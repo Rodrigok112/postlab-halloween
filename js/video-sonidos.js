@@ -613,3 +613,173 @@ export async function sonidoPersecucion() {
   for (let i = 0; i < SR * COLA; i++) out[i] += datos[n + i];
   return normalizar(ps1(out), 0.8);
 }
+
+// ---------- Música de la persecución, versión de terror (28/10) ----------
+// No es un bucle con pulso fijo (eso sonaba a «mejor que corras»): es un crescendo de 48 s, lo que dura más o menos
+// una carrera, que va de casi nada a todo. Si la carrera dura más, en el juego se repite el tramo final (32–48 s),
+// que ya está al máximo. Se quedan el tictac (cada vez más rápido: se acaba el tiempo) y los golpazos (irregulares,
+// cada vez más seguidos y a veces dobles). Lo que molesta: un retumbar grave que «late» (31 y 34 Hz), un racimo
+// disonante (Do–Do#–Fa#) que se desafina solo, pares de pitidos agudos que baten, chirridos que se deslizan sin
+// patrón, un tono que no para de subir (Shepard), rascados metálicos y gritos fantasma muy graves y lejanos.
+export const TERROR_S = 48;
+export const TERROR_BUCLE = [32, 48];
+
+// Paseo al azar suave: n valores entre −1 y 1.
+function deriva(rnd, n) {
+  const v = new Float32Array(n);
+  let x = 0;
+  for (let i = 0; i < n; i++) {
+    x = Math.max(-1, Math.min(1, x + (rnd() - 0.5) * 0.5));
+    v[i] = x;
+  }
+  return v;
+}
+
+function terror(ctx, salida) {
+  const T = TERROR_S;
+  const rnd = createRng(66613);
+  const sala = reverb(ctx, 2.4);
+  const mojado = ganancia(ctx, 0.35);
+  sala.connect(mojado).connect(salida);
+  const bus = ganancia(ctx, 1);
+  bus.connect(salida);
+  bus.connect(sala);
+  // Cuánto ha crecido a los t segundos (0 → 1, llega al máximo a los 36 s).
+  const k = (t) => Math.min(1, t / 36);
+
+  // 1. Retumbar grave que late.
+  const gr = ganancia(ctx, 0);
+  gr.connect(bus);
+  gr.gain.setValueAtTime(0.12, 0);
+  gr.gain.linearRampToValueAtTime(0.32, 36);
+  for (const f of [31, 34]) {
+    const o = tono(ctx, 'sine', f);
+    o.connect(gr);
+    o.start(0);
+    o.stop(T);
+  }
+  const rum = ruido(ctx, T);
+  const grn = ganancia(ctx, 0.25);
+  rum.connect(filtro(ctx, 'lowpass', 90)).connect(grn).connect(gr);
+  rum.start(0);
+
+  // 2. Racimo disonante que se desafina solo.
+  const lp = filtro(ctx, 'lowpass', 300, 1.5);
+  const gd = ganancia(ctx, 0);
+  lp.connect(gd).connect(bus);
+  lp.frequency.setValueAtTime(300, 4);
+  lp.frequency.exponentialRampToValueAtTime(2200, 36);
+  gd.gain.setValueAtTime(0.0001, 4);
+  gd.gain.exponentialRampToValueAtTime(0.2, 36);
+  for (const m of [36, 37, 42, 48, 49]) {
+    const o = tono(ctx, 'sawtooth', hz(m));
+    o.detune.setValueCurveAtTime(deriva(rnd, 64).map((v) => v * 45), 4, T - 4);
+    o.connect(lp);
+    o.start(4);
+    o.stop(T);
+  }
+
+  // 3. Pitidos agudos que baten (molestan): uno desde los 12 s, otro desde los 24.
+  for (const [f, desde] of [[2093, 12], [3136, 24]]) {
+    const g = ganancia(ctx, 0);
+    g.connect(bus);
+    g.gain.setValueAtTime(0.0001, desde);
+    g.gain.exponentialRampToValueAtTime(0.03, 36);
+    for (const d of [0, 6.5]) {
+      const o = tono(ctx, 'sine', f + d);
+      o.connect(g);
+      o.start(desde);
+      o.stop(T);
+    }
+  }
+
+  // 4. Chirridos: ruido muy estrecho que se desliza sin patrón, a ratos.
+  for (let t = 13 + rnd() * 2; t < T - 1; t += 2.6 - 1.6 * k(t) + rnd() * 1.5) {
+    const d = 0.8 + rnd() * 1.6;
+    const n = ruido(ctx, d);
+    const f = filtro(ctx, 'bandpass', 1500 + rnd() * 2500, 28);
+    const g = ganancia(ctx, 0);
+    n.connect(f).connect(g).connect(bus);
+    f.frequency.setValueAtTime(1500 + rnd() * 2500, t);
+    f.frequency.exponentialRampToValueAtTime(1200 + rnd() * 3800, t + d);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35 + 0.6 * k(t), t + d * 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    n.start(t);
+  }
+
+  // 5. Tono de Shepard que no para de subir (desde los 24 s): seis octavas que suben una octava cada 8 s.
+  const gs = ganancia(ctx, 0);
+  gs.connect(filtro(ctx, 'lowpass', 4000)).connect(bus);
+  gs.gain.setValueAtTime(0.0001, 24);
+  gs.gain.exponentialRampToValueAtTime(0.07, 36);
+  for (let i = 0; i < 6; i++) {
+    const o = tono(ctx, 'sine', 55);
+    const g = ganancia(ctx, 0);
+    o.connect(g).connect(gs);
+    const pasos = 96;
+    const fr = new Float32Array(pasos);
+    const am = new Float32Array(pasos);
+    for (let j = 0; j < pasos; j++) {
+      const oct = (i + (j / pasos) * ((T - 24) / 8)) % 6;
+      fr[j] = 55 * 2 ** oct;
+      am[j] = Math.exp(-(((oct - 3) / 1.4) ** 2));
+    }
+    o.frequency.setValueCurveAtTime(fr, 24, T - 24);
+    g.gain.setValueCurveAtTime(am, 24, T - 24);
+    o.start(24);
+    o.stop(T);
+  }
+
+  // 6. Tictac: de 2 a 8 por segundo.
+  for (let t = 0; t < T;) {
+    const n = ruido(ctx, 0.03);
+    const g = ganancia(ctx, 0);
+    n.connect(filtro(ctx, 'bandpass', 7000, 6)).connect(g).connect(bus);
+    g.gain.setValueAtTime(0.1 + 0.12 * k(t), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+    n.start(t);
+    t += 1 / (2 + 6 * k(t));
+  }
+
+  // 7. Golpazos irregulares: cada vez más seguidos y fuertes; a veces dobles.
+  for (let t = 1.2; t < T - 0.3;) {
+    const v = 0.45 + 0.55 * k(t);
+    golpe(ctx, bus, t, rnd() < 0.2 ? 47 : 48, v);
+    if (rnd() < 0.3) golpe(ctx, bus, t + 0.16 + rnd() * 0.1, 48, v * 0.7);
+    t += (3.2 - 2.4 * k(t)) * (0.6 + rnd() * 0.8);
+  }
+
+  // 8. Gritos fantasma, muy graves y lejanos (desde los 18 s).
+  const grito = ctx.createBuffer(1, Math.ceil(SR * 1.6), SR);
+  grito.copyToChannel(screamSamples(SR, 1.6, createRng(1031)), 0);
+  for (let t = 18 + rnd() * 3; t < T - 2; t += 5 - 2.5 * k(t) + rnd() * 2) {
+    const s = ctx.createBufferSource();
+    s.buffer = grito;
+    s.playbackRate.value = 0.38 + rnd() * 0.2;
+    const g = ganancia(ctx, 0);
+    s.connect(filtro(ctx, 'lowpass', 900)).connect(g).connect(bus);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.1 + 0.12 * k(t), t + 0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.5);
+    s.start(t);
+  }
+
+  // 9. Rascados metálicos (desde los 26 s): ruido resonante que cae de agudo a grave.
+  for (let t = 26 + rnd() * 2; t < T - 1; t += 3 + rnd() * 3) {
+    const d = 0.5 + rnd() * 0.6;
+    const n = ruido(ctx, d);
+    const f = filtro(ctx, 'bandpass', 6000, 12);
+    const g = ganancia(ctx, 0);
+    n.connect(f).connect(g).connect(bus);
+    f.frequency.setValueAtTime(6000, t);
+    f.frequency.exponentialRampToValueAtTime(700, t + d);
+    g.gain.setValueAtTime(0.45, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    n.start(t);
+  }
+}
+
+export async function sonidoTerror() {
+  return normalizar(ps1(await render(TERROR_S, terror)), 0.85);
+}
