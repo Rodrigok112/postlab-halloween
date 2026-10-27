@@ -6,14 +6,14 @@ export const MAX_NOMBRE = 20;
 // Un par de fotogramas: se ve, pero no da tiempo a mirarlo.
 export const ENTE_MS = 70;
 export const RAYADO_MS = 2000;
-// Antes de la final, todo en blanco y en silencio (28/10).
+// Antes de la final, la tarjeta vacía en blanco y en silencio (28/10).
 export const BLANCO_MS = 2200;
 
 // nivel: corrupción visual y de la música. thumps/delay: golpes y espera tras responder.
 // destellos: ms visibles y gap de negro entre uno y otro (como mucho 3 por segundo).
 // glitchPasajero: unas letras se rompen y se ordenan. sinCara: ya no está la carita rosa.
 // golpeteo: golpes constantes (en la final, desde el primer No). sinMusica: la música se corta en seco.
-// blanco: pantalla en blanco, como si se hubiera roto, antes de la final.
+// blanco: la tarjeta de la pregunta vacía, como si se hubiera roto, antes de la final.
 export const STEPS = [
   { id: 'inicio', kind: 'inicio', nivel: 0 },
   { id: 'nombre', kind: 'nombre', nivel: 0, delay: 1000 },

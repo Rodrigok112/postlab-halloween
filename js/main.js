@@ -154,7 +154,7 @@ function paint() {
       later(() => { startMusic(); state = advance(state); paint(); }, RAYADO_MS);
       break;
     case 'blanco':
-      // Todo en blanco y en silencio, como si se hubiera roto.
+      // La tarjeta vacía y en blanco, en silencio, como si se hubiera roto.
       renderBlanco(app);
       later(() => { state = advance(state); paint(); }, BLANCO_MS);
       break;

@@ -512,3 +512,104 @@ export async function pistas8() {
   })), 0.9);
   return { musica, efectos, mezcla };
 }
+
+// ---------- Música de la persecución (28/10): bucle de 16 s, sacado de la del vídeo ----------
+// 120 bpm, 8 compases de 2 s. Dron de Do y Sol con el filtro que respira una vez por bucle, el doble latido
+// («bum-bum») al empezar cada compás y otro más flojo a la mitad, un tictac metálico en semicorcheas, el racimo
+// agudo disonante (Do–Do#) que entra y sale en cada frase de 4 compases y un barrido de ruido que lleva al
+// compás 1 de cada frase. La cola de la reverb del final se suma al principio, para que al repetir no se note.
+export const PERSECUCION_S = 16;
+const NEGRA = 0.5;
+
+function persecucion(ctx, salida) {
+  const T = PERSECUCION_S;
+  const sala = reverb(ctx, 1.6);
+  const mojado = ganancia(ctx, 0.3);
+  sala.connect(mojado).connect(salida);
+  const bus = ganancia(ctx, 1);
+  bus.connect(salida);
+  bus.connect(sala);
+
+  // Dron.
+  const lp = filtro(ctx, 'lowpass', 500, 1.4);
+  const gd = ganancia(ctx, 0.2);
+  lp.connect(gd).connect(bus);
+  const lfo = tono(ctx, 'sine', 1 / T);
+  const glfo = ganancia(ctx, 380);
+  lfo.connect(glfo).connect(lp.frequency);
+  for (const [m, det] of [[36, 0], [48, -6], [48, 7], [55, 3]]) {
+    const o = tono(ctx, 'sawtooth', hz(m));
+    o.detune.value = det;
+    o.connect(lp);
+    o.start(0);
+    o.stop(T + 2);
+  }
+  lfo.start(0);
+  lfo.stop(T + 2);
+
+  // Latidos: doble al empezar cada compás y uno flojo a la mitad.
+  for (let compas = 0; compas < 8; compas++) {
+    const t0 = compas * 4 * NEGRA;
+    const fuerte = compas % 4 === 0 ? 0.95 : 0.75;
+    golpe(ctx, bus, t0, 48, fuerte);
+    golpe(ctx, bus, t0 + 0.24, 48, fuerte * 0.75);
+    golpe(ctx, bus, t0 + 2 * NEGRA, compas % 2 ? 50 : 48, 0.45);
+  }
+
+  // Tictac metálico en semicorcheas, más fuerte en las negras.
+  for (let i = 0; i < 64; i++) {
+    const t = i * NEGRA / 4;
+    const n = ruido(ctx, 0.03);
+    const g = ganancia(ctx, 0);
+    n.connect(filtro(ctx, 'bandpass', 7000, 6)).connect(g).connect(bus);
+    g.gain.setValueAtTime(i % 4 === 0 ? 0.22 : 0.09, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+    n.start(t);
+  }
+
+  // Racimo agudo: entra y sale en cada frase de 4 compases (8 s), con trémolo.
+  const gc = ganancia(ctx, 0);
+  const trem = tono(ctx, 'sine', 8);
+  const gt = ganancia(ctx, 0.015);
+  trem.connect(gt).connect(gc.gain);
+  gc.connect(filtro(ctx, 'lowpass', 4500)).connect(bus);
+  for (const f0 of [0, 8]) {
+    gc.gain.setValueAtTime(0.0001, f0);
+    gc.gain.exponentialRampToValueAtTime(0.05, f0 + 6);
+    gc.gain.exponentialRampToValueAtTime(0.0001, f0 + 7.9);
+  }
+  for (const [m, det] of [[72, 0], [73, -12], [79, 9]]) {
+    const o = tono(ctx, 'triangle', hz(m));
+    o.detune.value = det;
+    o.connect(gc);
+    o.start(0);
+    o.stop(T + 2);
+  }
+  trem.start(0);
+  trem.stop(T + 2);
+
+  // Barrido de ruido que sube los últimos 2 s de cada frase.
+  for (const f0 of [6, 14]) {
+    const br = ruido(ctx, 2);
+    const fb = filtro(ctx, 'bandpass', 400, 1.5);
+    const gb = ganancia(ctx, 0);
+    br.connect(fb).connect(gb).connect(bus);
+    fb.frequency.setValueAtTime(400, f0);
+    fb.frequency.exponentialRampToValueAtTime(5000, f0 + 1.95);
+    gb.gain.setValueAtTime(0.0001, f0);
+    gb.gain.exponentialRampToValueAtTime(0.16, f0 + 1.9);
+    gb.gain.setValueAtTime(0, f0 + 2);
+    br.start(f0);
+  }
+}
+
+// El bucle de 16 s, listo para repetir: lo que suena pasado el final (colas) se suma al principio.
+export async function sonidoPersecucion() {
+  const COLA = 2;
+  const datos = await render(PERSECUCION_S + COLA, persecucion);
+  const n = SR * PERSECUCION_S;
+  const out = new Float32Array(n);
+  out.set(datos.subarray(0, n));
+  for (let i = 0; i < SR * COLA; i++) out[i] += datos[n + i];
+  return normalizar(ps1(out), 0.8);
+}

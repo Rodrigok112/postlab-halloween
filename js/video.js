@@ -12,7 +12,7 @@ import { cargarFotos } from './juego/texturas.js';
 import { createRng } from './glitch.js';
 import { grabarEn, thump, scream, screamQTV } from './audio.js';
 import { golpePuerta, portazo } from './juego/sonidos.js';
-import { sonidoEncendido, sonidoAmbiente, sonidoMusica, pistas8 } from './video-sonidos.js';
+import { sonidoEncendido, sonidoAmbiente, sonidoMusica, pistas8, sonidoPersecucion } from './video-sonidos.js';
 
 const LADO = 1080;
 const INTERNO = 360;
@@ -255,6 +255,13 @@ async function guardarPistas8() {
   estadoTxt.textContent = 'pistas de 8 s guardadas en video/';
 }
 
+// La música en bucle de la persecución (para escucharla antes de meterla en el juego).
+async function guardarPersecucion() {
+  const comoBuffer = (datos) => ({ getChannelData: () => datos, sampleRate: 44100 });
+  await guardar('musica_persecucion_bucle.wav', wav(comoBuffer(await sonidoPersecucion())));
+  estadoTxt.textContent = 'música de la persecución guardada en video/';
+}
+
 // Solo las fotos de la animación.
 async function guardarFotos() {
   for (const nombre of Object.keys(ESTADOS).filter((n) => n.startsWith('foto_'))) {
@@ -289,4 +296,4 @@ bTodo.textContent = 'guardar todo';
 bTodo.addEventListener('click', () => guardarTodo().catch((e) => { estadoTxt.textContent = String(e); }));
 panel.append(bGuia, bTodo);
 poner('A');
-window.__video = { poner, guardarTodo, guardarFotos, guardarAmbiente, guardarPistas8, camara, hab, motor };
+window.__video = { poner, guardarTodo, guardarFotos, guardarAmbiente, guardarPistas8, guardarPersecucion, camara, hab, motor };

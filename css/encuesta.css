@@ -209,8 +209,9 @@ body.nivel-5 .si-media { border-radius: 0; }
 
 /* ---------- Pantallas negras ---------- */
 
-/* Antes de la final: todo en blanco, como si se hubiera roto. */
-.blanco { position: fixed; inset: 0; z-index: 40; background: #fff; }
+/* Antes de la final: la tarjeta de la pregunta, vacía y en blanco (no toda la pantalla, para que no parezca que
+   la web se ha colgado). */
+.tarjeta.vacia { min-height: 260px; background: #fff; }
 .negro {
   position: fixed; inset: 0; z-index: 40;
   background: #000;

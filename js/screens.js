@@ -364,7 +364,7 @@ export function renderBlack(root) {
 }
 
 export function renderBlanco(root) {
-  root.replaceChildren(el('div', 'blanco'));
+  root.replaceChildren(el('section', 'tarjeta vacia'));
 }
 
 export function renderEnte(root) {
