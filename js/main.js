@@ -271,8 +271,10 @@ makeDither();
 start();
 
 // Atajo de prueba: #juego-final2, #juego-pasillo, #juego-cruce o #juego-psicologo salta la encuesta y abre el juego.
-// Solo en este ordenador (localhost): en la web publicada no se puede saltar la encuesta.
-const enLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+// Solo en este ordenador (localhost) o por el túnel de prueba (trycloudflare): en la web publicada no se puede
+// saltar la encuesta.
+const enLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)
+  || window.location.hostname.endsWith('.trycloudflare.com');
 const atajo = enLocal && /^#juego-(final2|pasillo|cruce|psicologo)$/.exec(window.location.hash);
 if (atajo) {
   juegoListo.then(() => {

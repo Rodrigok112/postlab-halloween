@@ -18,7 +18,7 @@ import {
   portazo, paso, crearCoro, astillazo, voz, crearArrastre, crearFondo, crearZumbido, pasoMetal, chirrido,
   golpePuerta, encontrado,
 } from './sonidos.js';
-import { thump, scream, screamQTV, getContext } from '../audio.js';
+import { thump, scream, screamQTV, getContext, unlockAudio } from '../audio.js';
 import { sonidoTerror, sonidoJardin, TERROR_BUCLE } from '../pistas.js';
 import { createRng, createFlashGuard } from '../glitch.js';
 import { ahiEstas, PSICOLOGO } from '../texts.js';
@@ -577,6 +577,7 @@ export async function iniciarJuego({ camino, reiniciar, nombre }) {
 
     const elegirLado = (lado) => (ev) => {
       ev.stopPropagation();
+      unlockAudio(); // por si se entró por un atajo de prueba, sin pasar por el «Empezar» de la encuesta
       if (elegido) return;
       elegido = true;
       clearTimeout(plazo);
