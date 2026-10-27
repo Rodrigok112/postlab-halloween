@@ -30,6 +30,7 @@ const ESTADOS = {
   foto_3_apagado_pantalla_rojo: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.6, 1.8], rojo: true },
   foto_4_encendido_escapar: { luz: true, pantalla: [0x2a2a2e, 0x606878, 0.3], escapar: true },
   foto_5_encendido_escapar_rojo: { luz: true, pantalla: [0x2a2a2e, 0x606878, 0.3], escapar: true, rojo: true },
+  foto_6_apagado_escapar: { luz: false, pantalla: [0x2a2a2e, 0x606878, 0.35, 1.8], escapar: true },
 };
 const BOLA = { x: 540, y: 540, r: 76 };
 const TEXTO_ESCAPAR = 'haz click para escapar';
