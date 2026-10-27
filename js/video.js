@@ -22,7 +22,17 @@ const ESTADOS = {
   B: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.9] },
   C: { luz: false, pantalla: [0x1a2230, 0x2a3850, 0.25] },
   D: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.9], rojo: true },
+  // Fotos para la animación (27/10). «Todo apagado»: solo la pantalla ilumina el monitor y la mesa.
+  // escapar: pantalla gris muy oscura con el círculo negro de la guía (152 px en 540, 540) y debajo «haz click
+  // para escapar»; los dos se dibujan encima del render, a resolución completa el círculo, para que coincida.
+  foto_1_apagado_pantalla: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.6, 1.8] },
+  foto_2_encendido_rojo: { luz: true, pantalla: [0xffffff, 0xe8f0ff, 1.2], rojo: true },
+  foto_3_apagado_pantalla_rojo: { luz: false, pantalla: [0xffffff, 0xe8f0ff, 0.6, 1.8], rojo: true },
+  foto_4_encendido_escapar: { luz: true, pantalla: [0x2a2a2e, 0x606878, 0.3], escapar: true },
+  foto_5_encendido_escapar_rojo: { luz: true, pantalla: [0x2a2a2e, 0x606878, 0.3], escapar: true, rojo: true },
 };
+const BOLA = { x: 540, y: 540, r: 76 };
+const TEXTO_ESCAPAR = 'haz click para escapar';
 
 // Sonidos sueltos: [nombre, segundos, qué suena].
 const SONIDOS = [
@@ -45,7 +55,7 @@ const PISTA = [
 
 const contenedor = document.getElementById('escena');
 const estadoTxt = document.getElementById('estado');
-await Promise.all([document.fonts.load('44px "Rubik Wet Paint"'), cargarFotos()]);
+await Promise.all([document.fonts.load('44px "Rubik Wet Paint"'), document.fonts.load('13px "VT323"'), cargarFotos()]);
 const motor = crearMotor(contenedor, { ladoCorto: INTERNO });
 const { escena, camara } = motor;
 const hab = crearHabitacion(createRng(20261031));
@@ -69,20 +79,37 @@ function poner(nombre) {
   hab.pantallaLisa(...e.pantalla);
   hab.rendija(Boolean(e.rojo));
   // El rojo entra por la derecha y desde abajo, como si viniera de la rendija de la puerta.
-  if (e.rojo) luces.punto(L_PASILLO, [0.95, 0.55, -0.75], 0xff1808, 4.0, 1.9);
+  // Con la bombilla encendida hace falta más rojo para que se note.
+  if (e.rojo) luces.punto(L_PASILLO, [0.95, 0.55, -0.75], 0xff1808, e.luz ? 7.0 : 4.0, e.luz ? 2.2 : 1.9);
   else if (e.luz) luces.punto(L_PASILLO, [-4.3, 2.1, 0.35], 0xd8c070, 0.9, 3.2);
   else luces.apagar(L_PASILLO);
   motor.render();
   estadoTxt.textContent = `estado ${nombre} · fov ${camara.fov.toFixed(1)}° · pantalla ${PANTALLA_PX} px de alto`;
 }
 
-// El lienzo interno (360) escalado ×3 sin suavizado.
-async function png() {
+// El lienzo interno (360) escalado ×3 sin suavizado; con escapar, el círculo y el texto encima.
+async function png(nombre) {
   const grande = document.createElement('canvas');
   grande.width = grande.height = LADO;
   const g = grande.getContext('2d');
   g.imageSmoothingEnabled = false;
   g.drawImage(motor.lienzo, 0, 0, LADO, LADO);
+  if (ESTADOS[nombre]?.escapar) {
+    g.fillStyle = '#000';
+    g.beginPath();
+    g.arc(BOLA.x, BOLA.y, BOLA.r, 0, Math.PI * 2);
+    g.fill();
+    // El texto a la resolución interna y escalado ×3, para que tenga los mismos píxeles gordos que el resto.
+    const chico = document.createElement('canvas');
+    chico.width = chico.height = INTERNO;
+    const c = chico.getContext('2d');
+    c.font = '13px "VT323"';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = '#ecece6';
+    c.fillText(TEXTO_ESCAPAR, INTERNO / 2, (BOLA.y + BOLA.r + 720) / 2 / 3);
+    g.drawImage(chico, 0, 0, LADO, LADO);
+  }
   return new Promise((r) => grande.toBlob(r, 'image/png'));
 }
 
@@ -120,10 +147,19 @@ async function grabar(segundos, momentos) {
   }
 }
 
-async function guardarTodo() {
-  for (const nombre of Object.keys(ESTADOS)) {
+// Solo las fotos de la animación.
+async function guardarFotos() {
+  for (const nombre of Object.keys(ESTADOS).filter((n) => n.startsWith('foto_'))) {
     poner(nombre);
-    await guardar(`estado_${nombre}.png`, await png());
+    await guardar(`${nombre}.png`, await png(nombre));
+  }
+  estadoTxt.textContent = 'fotos guardadas en video/';
+}
+
+async function guardarTodo() {
+  for (const nombre of Object.keys(ESTADOS).filter((n) => !n.startsWith('foto_'))) {
+    poner(nombre);
+    await guardar(`estado_${nombre}.png`, await png(nombre));
   }
   for (const [nombre, seg, fn] of SONIDOS) await guardar(`${nombre}.wav`, await grabar(seg, [[0, fn]]));
   await guardar('pista_8s.wav', await grabar(8, PISTA));
@@ -145,4 +181,4 @@ bTodo.textContent = 'guardar todo';
 bTodo.addEventListener('click', () => guardarTodo().catch((e) => { estadoTxt.textContent = String(e); }));
 panel.append(bGuia, bTodo);
 poner('A');
-window.__video = { poner, guardarTodo, camara, hab, motor };
+window.__video = { poner, guardarTodo, guardarFotos, camara, hab, motor };

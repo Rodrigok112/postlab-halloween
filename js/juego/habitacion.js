@@ -511,11 +511,11 @@ export function crearHabitacion(rng) {
     // La rendija roja bajo la puerta del ente.
     rendija(si) { rendija.visible = si; },
     // Pantalla de un color liso (para el vídeo: blanca o gris azulado), con la luz que da.
-    pantallaLisa(color, luz, intensidad) {
+    pantallaLisa(color, luz, intensidad, alcance = 2.6) {
       matPantalla.map = null;
       matPantalla.color.set(color);
       matPantalla.needsUpdate = true;
-      luces.punto(L_PANTALLA, LUZ_PANTALLA, luz, intensidad, 2.6);
+      luces.punto(L_PANTALLA, LUZ_PANTALLA, luz, intensidad, alcance);
     },
     pantalla: vidrio,
     // Brillo rojo de los ojos en el boquete (null = apagado).
