@@ -7,8 +7,43 @@ let ctx = null;
 let noise = null;
 let screamBuffer = null;
 
+// Un WAV de silencio (0,5 s, 8 kHz, 8 bits) en data URI, para el truco de iOS de abajo.
+function wavSilencio() {
+  const n = 4000;
+  const b = new Uint8Array(44 + n);
+  const v = new DataView(b.buffer);
+  const txt = (o, t) => [...t].forEach((ch, i) => { b[o + i] = ch.charCodeAt(0); });
+  txt(0, 'RIFF'); v.setUint32(4, 36 + n, true); txt(8, 'WAVE'); txt(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  txt(36, 'data'); v.setUint32(40, n, true);
+  b.fill(128, 44);
+  let bin = '';
+  b.forEach((x) => { bin += String.fromCharCode(x); });
+  return `data:audio/wav;base64,${btoa(bin)}`;
+}
+
+// iPhone (28/10): con el interruptor de silencio puesto, Safari deja mudo el audio web. Se le dice que esto es
+// «reproducción» (como un vídeo): con navigator.audioSession en iOS 17 o superior y, antes, con un audio
+// silencioso en bucle, que pasa la página a ese modo. Además, iOS suspende el audio al cambiar de app o bloquear
+// la pantalla: se reanuda con el siguiente toque.
+let silencio = null;
+function modoReproduccion() {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  } catch { /* no lo soporta */ }
+  if (silencio || navigator.audioSession) return;
+  silencio = document.createElement('audio');
+  silencio.src = wavSilencio();
+  silencio.loop = true;
+  silencio.setAttribute('playsinline', '');
+  silencio.play()?.catch(() => { silencio = null; });
+}
+const reanudar = () => { if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume(); };
+
 // Hay que llamarla dentro del manejador de un toque: los navegadores móviles no dejan sonar nada antes.
 export function unlockAudio() {
+  modoReproduccion();
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -16,8 +51,15 @@ export function unlockAudio() {
     noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate);
     const data = noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    // Algunas versiones de iOS solo sueltan el audio si suena algo dentro del mismo toque: un sonido vacío.
+    const vacio = ctx.createBufferSource();
+    vacio.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    vacio.connect(ctx.destination);
+    vacio.start(0);
+    for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, reanudar, { capture: true, passive: true });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reanudar(); });
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  reanudar();
 }
 
 export function getContext() {
